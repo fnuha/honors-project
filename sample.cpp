@@ -284,47 +284,70 @@ MulArray3(float factor, float a, float b, float c )
 Keytimes NodeZ;
 
 struct derivs {
-	float vel;
-	float acc;
+	float vel[3];
+	float acc[3];
 };
 
 struct nodeState {
-	float pos;
-	float vel;
-	float acc;
+	float pos[3];
+	float vel[3];
+	float acc[3];
 	float time;
 };
 
-struct myNode {
-	struct nodeState coords[3];
-	float weight;
-	float lastTime;
-};
-
-nodeState stateList[5] = { 0 };
-derivs derivList[5] = { 0 };
+nodeState stateList[5][5] = {0};
+derivs derivList[5][5] = {0};
 
 
 void getOneDDerivs() {
-	for (int i = 1; i < 5; i++) {
-		float sumfy = -Weight;
-		float ym = stateList[i-1].pos - stateList[i].pos;
-		float stretch = ym - LENGTH0;
-		sumfy += 0.5 * stretch;
-		sumfy -= 0.3 * derivList[i].vel;
-		derivList[i].vel = stateList[i].vel;
-		derivList[i].acc = sumfy / 1;
-	}
+
+		for (int i = 1; i < 5; i++) {
+			for (int j = 0; j < 5; j++) {
+				float sumfy = -Weight/2;
+				float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1];
+				float stretch = ym - LENGTH0;
+				sumfy += 0.5 * stretch;
+				sumfy -= 0.3 * derivList[i][j].vel[1];
+				derivList[i][j].vel[1] = stateList[i][j].vel[1];
+				derivList[i][j].acc[1] = sumfy / 1;
+			}
+		}
+
+		for (int i = 1; i < 5; i++) {
+			for (int j = 0; j < 5; j++) {
+				float sumfx = -Weight/2;
+				float xm = stateList[i - 1][j].pos[0] - stateList[i][j].pos[0];
+				float stretch = xm - LENGTH0;
+				sumfx += 0.5 * stretch;
+				sumfx -= 0.3 * derivList[i][j].vel[0];
+				derivList[i][j].vel[0] = stateList[i][j].vel[0];
+				derivList[i][j].acc[0] = sumfx / 1;
+
+				stretch = 0;
+				float sumfz = 0;
+				float zm = stateList[i - 1][j].pos[2] - stateList[i][j].pos[2];
+				stretch = zm - LENGTH0;
+				sumfz += 0.5 * stretch;
+				sumfz -= 0.3 * derivList[i][j].vel[2];
+				derivList[i][j].vel[2] = stateList[i][j].vel[2];
+				derivList[i][j].acc[2] = sumfz / 1;
+			}
+		}
+
 
 }
 
 void advOneTimeStep() {
-	for (int i = 1; i < 5; i++) {
-		getOneDDerivs();
-		stateList[i].pos = stateList[i].pos + (derivList[i].vel * 0.05);
-		stateList[i].vel = stateList[i].vel + (derivList[i].acc * 0.05);
-		stateList[i].time = stateList[i].time + 0.05;
+	getOneDDerivs();
+	for (int k = 0; k < 5; k++) {
+		for (int i = 1; i < 5; i++) {
+			for (int j = 0; j < 3; j++) {
+				stateList[i][k].pos[j] = stateList[i][k].pos[j] + (derivList[i][k].vel[j] * 0.05);
+				stateList[i][k].vel[j] = stateList[i][k].vel[j] + (derivList[i][k].acc[j] * 0.05);
+				stateList[i][k].time = stateList[i][k].time + 0.05;
+			}
 
+		}
 	}
 
 }
@@ -344,7 +367,7 @@ main( int argc, char *argv[ ] )
 
 	// setup all the graphics stuff:
 
-	InitGraphics( );
+	InitGraphics( ); //set up nodes here
 
 	// create the display lists that **will not change**:
 
@@ -500,22 +523,27 @@ Display( )
 
 	glEnable( GL_NORMALIZE );
 
+	for (int j = 0; j < 5; j++) {
+	
+		stateList[0][j].pos[1] = NodeZ.GetValue(nowTime);
 
+		glPushMatrix();
+		glTranslatef(stateList[0][j].pos[0] + j, stateList[0][j].pos[1], stateList[0][j].pos[2]);
+		glCallList(ObjList);
+		glPopMatrix();
 
-	stateList[0].pos = NodeZ.GetValue(nowTime);
-
-	glPushMatrix();
-	glTranslatef(0, stateList[0].pos, 0);
-	glCallList(ObjList);
-	glPopMatrix();
+	}
 
 	advOneTimeStep();
 	
-	for (int i = 1; i < 5; i++) {
-		glPushMatrix();
-		glTranslatef(0, stateList[i].pos, 0);
-		glCallList(ObjList);
-		glPopMatrix();
+	for (int i = 0; i < 5; i++) {
+		for (int j = 0; j < 5; j++) {
+			glPushMatrix();
+			glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+			glCallList(ObjList);
+			glPopMatrix();
+		}
+
 	}
 
 	
@@ -883,6 +911,19 @@ InitGraphics( )
 	NodeZ.AddTimeValue(5.0, 1.0);
 	NodeZ.AddTimeValue(7.5, 0.0);
 	NodeZ.AddTimeValue(10.0, 1.0);
+
+	for (int i = 0; i < 5; i++) {
+		for (int j = 0; j < 5; j++) {
+
+			stateList[i][j].pos[0] = j;
+			stateList[i][j].pos[1] = -i;
+			stateList[i][j].pos[2] = 0;
+
+			stateList[i][j].vel[0] = 0;
+			stateList[i][j].vel[1] = 0;
+			stateList[i][j].vel[2] = 0;
+		}
+	}
 
 }
 
