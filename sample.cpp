@@ -43,7 +43,7 @@
 
 // title of these windows:
 
-const char *WINDOWTITLE = "OpenGL / GLUT Sample -- Joe Graphics";
+const char *WINDOWTITLE = "OpenGL / GLUT Sample -- Faaizah Nuha";
 const char *GLUITITLE   = "User Interface Window";
 
 // what the glui package defines as true and false:
@@ -191,8 +191,6 @@ int		ShadowsOn;				// != 0 means to turn shadows on
 float	Time;					// used for animation, this has a value between 0. and 1.
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
-int		Weight = 1;
-int		LENGTH0 = 0.3;
 
 // function prototypes:
 
@@ -283,6 +281,11 @@ MulArray3(float factor, float a, float b, float c )
 
 Keytimes NodeZ;
 
+float	Weight = 0.5;
+float	LENGTH0 = 0.3;
+int		rows = 5;
+int		cols = 5;
+
 struct derivs {
 	float vel[3];
 	float acc[3];
@@ -295,27 +298,28 @@ struct nodeState {
 	float time;
 };
 
-nodeState stateList[5][5] = {0};
+
+nodeState stateList[5][5] = {0}; //[rows][cols]
 derivs derivList[5][5] = {0};
 
 
 void getOneDDerivs() {
 
-		for (int i = 1; i < 5; i++) {
-			for (int j = 0; j < 5; j++) {
-				float sumfy = -Weight/2;
-				float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1];
-				float stretch = ym - LENGTH0;
-				sumfy += 0.5 * stretch;
-				sumfy -= 0.3 * derivList[i][j].vel[1];
-				derivList[i][j].vel[1] = stateList[i][j].vel[1];
-				derivList[i][j].acc[1] = sumfy / 1;
+		for (int i = 1; i < rows; i++) { // rows
+			for (int j = 0; j < cols; j++) { // cols
+				float sumfy = -Weight; // downwards weight
+				float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1]; // prev node pos minus curr node pos to find upwards force
+				float stretch = ym - LENGTH0; // upwards stretch minus default stretch w no forces
+				sumfy += 0.5 * stretch; //adding stretch upwards to downwards weight
+				sumfy -= 0.3 * derivList[i][j].vel[1]; //adding velocity to stretch
+				derivList[i][j].vel[1] = stateList[i][j].vel[1]; //updating velocity
+				derivList[i][j].acc[1] = sumfy / 1; //updating acceleration
 			}
 		}
 
-		for (int i = 1; i < 5; i++) {
-			for (int j = 0; j < 5; j++) {
-				float sumfx = -Weight/2;
+		for (int i = 1; i < rows; i++) {
+			for (int j = 0; j < cols; j++) {
+				float sumfx = 0;
 				float xm = stateList[i - 1][j].pos[0] - stateList[i][j].pos[0];
 				float stretch = xm - LENGTH0;
 				sumfx += 0.5 * stretch;
@@ -339,9 +343,9 @@ void getOneDDerivs() {
 
 void advOneTimeStep() {
 	getOneDDerivs();
-	for (int k = 0; k < 5; k++) {
-		for (int i = 1; i < 5; i++) {
-			for (int j = 0; j < 3; j++) {
+	for (int k = 0; k < cols; k++) { //cols
+		for (int i = 1; i < rows; i++) { // row
+			for (int j = 0; j < 3; j++) { // three dimensions x y and z
 				stateList[i][k].pos[j] = stateList[i][k].pos[j] + (derivList[i][k].vel[j] * 0.05);
 				stateList[i][k].vel[j] = stateList[i][k].vel[j] + (derivList[i][k].acc[j] * 0.05);
 				stateList[i][k].time = stateList[i][k].time + 0.05;
@@ -523,12 +527,14 @@ Display( )
 
 	glEnable( GL_NORMALIZE );
 
-	for (int j = 0; j < 5; j++) {
-	
+	for (int j = 0; j < cols; j++) {
+
+		stateList[0][j].pos[0] = 0;
 		stateList[0][j].pos[1] = NodeZ.GetValue(nowTime);
+		stateList[0][j].pos[2] = 0;
 
 		glPushMatrix();
-		glTranslatef(stateList[0][j].pos[0] + j, stateList[0][j].pos[1], stateList[0][j].pos[2]);
+		glTranslatef(stateList[0][j].pos[0], stateList[0][j].pos[1], stateList[0][j].pos[2]);
 		glCallList(ObjList);
 		glPopMatrix();
 
@@ -536,8 +542,8 @@ Display( )
 
 	advOneTimeStep();
 	
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
+	for (int i = 1; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
 			glPushMatrix();
 			glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
 			glCallList(ObjList);
