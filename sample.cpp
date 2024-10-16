@@ -22,6 +22,8 @@
 #include <GL/glu.h>
 #include "glut.h"
 
+#define PICK_TOL
+#define PICK_BUFFER_SIZE 256
 
 //	This is a sample OpenGL / GLUT program
 //
@@ -224,7 +226,6 @@ float			Dot(float [3], float [3]);
 float			Unit(float [3], float [3]);
 float			Unit(float [3]);
 
-
 // utility to create an array from 3 separate values:
 
 float *
@@ -281,10 +282,10 @@ MulArray3(float factor, float a, float b, float c )
 
 Keytimes NodeZ;
 
-float	Weight = 0.5;
+float	Weight = 0.4;
 float	LENGTH0 = 0.3;
-int		rows = 5;
-int		cols = 5;
+int		rows = 15;
+int		cols = 15;
 
 struct derivs {
 	float vel[3];
@@ -295,12 +296,23 @@ struct nodeState {
 	float pos[3];
 	float vel[3];
 	float acc[3];
-	float time;
+	//float time;
 };
 
+struct node {
+	struct nodeState nodeState;
+	struct derivs derivs;
+};
 
-nodeState stateList[5][5] = {0}; //[rows][cols]
-derivs derivList[5][5] = {0};
+//float nodetime;
+
+
+nodeState** stateList; //[rows][cols]
+derivs** derivList;
+int		Freeze = 0; //0 means no freeze, 1 means yes freeze
+
+unsigned int PickBuffer[PICK_BUFFER_SIZE];
+int RenderMode; //GL_RENDER vs GL_SELECT mode
 
 
 void getOneDDerivs() {
@@ -320,8 +332,8 @@ void getOneDDerivs() {
 		for (int i = 1; i < rows; i++) {
 			for (int j = 0; j < cols; j++) {
 				float sumfx = 0;
-				float xm = stateList[i - 1][j].pos[0] - stateList[i][j].pos[0];
-				float stretch = xm - LENGTH0;
+				float xm = stateList[i-1][j].pos[0] - stateList[i][j].pos[0];
+				float stretch = xm;
 				sumfx += 0.5 * stretch;
 				sumfx -= 0.3 * derivList[i][j].vel[0];
 				derivList[i][j].vel[0] = stateList[i][j].vel[0];
@@ -330,7 +342,7 @@ void getOneDDerivs() {
 				stretch = 0;
 				float sumfz = 0;
 				float zm = stateList[i - 1][j].pos[2] - stateList[i][j].pos[2];
-				stretch = zm - LENGTH0;
+				stretch = zm;
 				sumfz += 0.5 * stretch;
 				sumfz -= 0.3 * derivList[i][j].vel[2];
 				derivList[i][j].vel[2] = stateList[i][j].vel[2];
@@ -343,15 +355,28 @@ void getOneDDerivs() {
 
 void advOneTimeStep() {
 	getOneDDerivs();
+	//nodetime = nodetime + 0.05;
 	for (int k = 0; k < cols; k++) { //cols
 		for (int i = 1; i < rows; i++) { // row
 			for (int j = 0; j < 3; j++) { // three dimensions x y and z
 				stateList[i][k].pos[j] = stateList[i][k].pos[j] + (derivList[i][k].vel[j] * 0.05);
 				stateList[i][k].vel[j] = stateList[i][k].vel[j] + (derivList[i][k].acc[j] * 0.05);
-				stateList[i][k].time = stateList[i][k].time + 0.05;
+				//stateList[i][k].time = stateList[i][k].time + 0.05;
 			}
 
 		}
+	}
+
+}
+
+void InitArray(int cols, int rows) {
+
+	stateList = new nodeState* [cols];
+	derivList = new derivs* [cols];
+
+	for (int i = 0; i < cols; i++) {
+		derivList[i] = new derivs[rows];
+		stateList[i] = new nodeState[rows];
 	}
 
 }
@@ -370,6 +395,8 @@ main( int argc, char *argv[ ] )
 	glutInit( &argc, argv );
 
 	// setup all the graphics stuff:
+
+	InitArray(cols, rows);
 
 	InitGraphics( ); //set up nodes here
 
@@ -526,28 +553,37 @@ Display( )
 	// since we are using glScalef( ), be sure the normals get unitized:
 
 	glEnable( GL_NORMALIZE );
+	
+	int x = 0;
 
 	for (int j = 0; j < cols; j++) {
 
-		stateList[0][j].pos[0] = 0;
-		stateList[0][j].pos[1] = NodeZ.GetValue(nowTime);
-		stateList[0][j].pos[2] = 0;
+		if (Freeze != 1) {
+
+			stateList[0][j].pos[1] = NodeZ.GetValue(nowTime);
+		}
 
 		glPushMatrix();
 		glTranslatef(stateList[0][j].pos[0], stateList[0][j].pos[1], stateList[0][j].pos[2]);
+		glLoadName(x);
 		glCallList(ObjList);
 		glPopMatrix();
 
+		x++;
+	}
+	
+	if (Freeze != 1) {
+		advOneTimeStep();
 	}
 
-	advOneTimeStep();
-	
 	for (int i = 1; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
 			glPushMatrix();
 			glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+			glLoadName(x);
 			glCallList(ObjList);
 			glPopMatrix();
+			x++;
 		}
 
 	}
@@ -843,6 +879,10 @@ InitGraphics( )
 	MainWindow = glutCreateWindow( WINDOWTITLE );
 	glutSetWindowTitle( WINDOWTITLE );
 
+	// setting up picking buffer:
+
+	glSelectBuffer(PICK_BUFFER_SIZE, PickBuffer);
+
 	// set the framebuffer clear values:
 
 	glClearColor( BACKCOLOR[0], BACKCOLOR[1], BACKCOLOR[2], BACKCOLOR[3] );
@@ -918,8 +958,8 @@ InitGraphics( )
 	NodeZ.AddTimeValue(7.5, 0.0);
 	NodeZ.AddTimeValue(10.0, 1.0);
 
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
 
 			stateList[i][j].pos[0] = j;
 			stateList[i][j].pos[1] = -i;
@@ -987,7 +1027,16 @@ Keyboard( unsigned char c, int x, int y )
 		case 'P':
 			NowProjection = PERSP;
 			break;
-
+		case 'f':
+		case 'F':
+			if (Freeze == 0) {
+				Freeze = 1;
+			}
+			else {
+				Freeze = 0;
+			}
+			break;
+			break;	
 		case 'q':
 		case 'Q':
 		case ESCAPE:
@@ -1049,6 +1098,16 @@ MouseButton( int button, int state, int x, int y )
 	}
 
 	// button down sets the bit, up clears the bit:
+
+	if ((ActiveButton & LEFT) && (state == GLUT_DOWN)) {
+		RenderMode = GL_SELECT;
+		glRenderMode(GL_SELECT);
+		Display();
+		RenderMode = GL_RENDER;
+		int Nhits = glRenderMode(GL_RENDER);
+
+		fprintf(stderr, "#pick hits = %d\n", Nhits);
+	}
 
 	if( state == GLUT_DOWN )
 	{
@@ -1117,6 +1176,30 @@ Reset( )
 	NowColor = YELLOW;
 	NowProjection = PERSP;
 	Xrot = Yrot = 0.;
+	Freeze = 0;
+
+
+	for (int k = 0; k < cols; k++) { //cols
+		for (int i = 1; i < rows; i++) { // row
+			for (int j = 0; j < 3; j++) { // three dimensions x y and z
+				stateList[i][j].pos[0] = j;
+				stateList[i][j].pos[1] = -i;
+				stateList[i][j].pos[2] = 0;
+
+				stateList[i][j].vel[0] = 0;
+				stateList[i][j].vel[1] = 0;
+				stateList[i][j].vel[2] = 0;
+
+				stateList[i][k].acc[j] = 0;
+
+				derivList[i][k].vel[j] = 0;
+				derivList[i][k].acc[j] = 0;
+				//stateList[i][k].time = stateList[i][k].time + 0.05;
+			}
+
+		}
+	}
+
 }
 
 
