@@ -282,10 +282,14 @@ MulArray3(float factor, float a, float b, float c )
 
 Keytimes NodeZ;
 
+
+//changeable variables
 float	Weight = 0.4;
-float	LENGTH0 = 0.3;
-int		rows = 15;
-int		cols = 15;
+float	LENGTH0 = 0.2;
+int		rows = 10;
+int		cols = 10;
+float	k = 5.;
+float	damp = 3.;
 
 struct derivs {
 	float vel[3];
@@ -296,7 +300,6 @@ struct nodeState {
 	float pos[3];
 	float vel[3];
 	float acc[3];
-	//float time;
 };
 
 struct node {
@@ -322,29 +325,59 @@ void getOneDDerivs() {
 				float sumfy = -Weight; // downwards weight
 				float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1]; // prev node pos minus curr node pos to find upwards force
 				float stretch = ym - LENGTH0; // upwards stretch minus default stretch w no forces
-				sumfy += 0.5 * stretch; //adding stretch upwards to downwards weight
-				sumfy -= 0.3 * derivList[i][j].vel[1]; //adding velocity to stretch
-				derivList[i][j].vel[1] = stateList[i][j].vel[1]; //updating velocity
-				derivList[i][j].acc[1] = sumfy / 1; //updating acceleration
-			}
-		}
+				sumfy += k * stretch; //adding stretch upwards to downwards weight
+				sumfy -= damp * derivList[i][j].vel[1]; //adding velocity to stretch
+				
+				float sumfx = 0; //no downwards weight
+				float xm = stateList[i-1][j].pos[0] - stateList[i][j].pos[0]; //prev node minus curr node pos
+				stretch = xm; //horizontal force
+				sumfx += k * stretch; //adding stretch to movement
+				sumfx -= damp * derivList[i][j].vel[0]; //adding velocity to stretch
 
-		for (int i = 1; i < rows; i++) {
-			for (int j = 0; j < cols; j++) {
-				float sumfx = 0;
-				float xm = stateList[i-1][j].pos[0] - stateList[i][j].pos[0];
-				float stretch = xm;
-				sumfx += 0.5 * stretch;
-				sumfx -= 0.3 * derivList[i][j].vel[0];
-				derivList[i][j].vel[0] = stateList[i][j].vel[0];
-				derivList[i][j].acc[0] = sumfx / 1;
-
-				stretch = 0;
 				float sumfz = 0;
 				float zm = stateList[i - 1][j].pos[2] - stateList[i][j].pos[2];
 				stretch = zm;
-				sumfz += 0.5 * stretch;
-				sumfz -= 0.3 * derivList[i][j].vel[2];
+				sumfz += k * stretch;
+				sumfz -= damp * derivList[i][j].vel[2];
+
+				if (i > 0 && j < cols - 1) { 
+					float dx = stateList[i - 1][j + 1].pos[0] - stateList[i][j].pos[0];
+					float dy = stateList[i - 1][j + 1].pos[1] - stateList[i][j].pos[1];
+					float dz = stateList[i - 1][j + 1].pos[2] - stateList[i][j].pos[2];
+
+					float length = sqrt(dx * dx + dy * dy + dz * dz);
+					dx /= length;
+					dy /= length;
+					dz /= length;
+					float stretch2 = length - LENGTH0;
+					float force = 0.5 * stretch2;
+					sumfx += force * dx;
+					sumfy += force * dy;
+					sumfz += force * dz;
+
+				}
+
+				if (i < rows - 1 && j > 0) {
+					float dx = stateList[i + 1][j - 1].pos[0] - stateList[i][j].pos[0];
+					float dy = stateList[i + 1][j - 1].pos[1] - stateList[i][j].pos[1];
+					float dz = stateList[i + 1][j - 1].pos[2] - stateList[i][j].pos[2];
+
+					float length = sqrt(dx * dx + dy * dy + dz * dz);
+					dx /= length;
+					dy /= length;
+					dz /= length;
+					float stretch2 = length - LENGTH0;
+					float force = 0.5 * stretch2;
+					sumfx += force * dx;
+					sumfy += force * dy;
+					sumfz += force * dz;
+
+				}
+
+				derivList[i][j].vel[0] = stateList[i][j].vel[0]; //updating vel
+				derivList[i][j].acc[0] = sumfx / 1; //updating acc
+				derivList[i][j].vel[1] = stateList[i][j].vel[1]; //updating velocity
+				derivList[i][j].acc[1] = sumfy / 1; //updating acceleration
 				derivList[i][j].vel[2] = stateList[i][j].vel[2];
 				derivList[i][j].acc[2] = sumfz / 1;
 			}
@@ -361,7 +394,6 @@ void advOneTimeStep() {
 			for (int j = 0; j < 3; j++) { // three dimensions x y and z
 				stateList[i][k].pos[j] = stateList[i][k].pos[j] + (derivList[i][k].vel[j] * 0.05);
 				stateList[i][k].vel[j] = stateList[i][k].vel[j] + (derivList[i][k].acc[j] * 0.05);
-				//stateList[i][k].time = stateList[i][k].time + 0.05;
 			}
 
 		}
@@ -560,7 +592,7 @@ Display( )
 
 		if (Freeze != 1) {
 
-			stateList[0][j].pos[1] = NodeZ.GetValue(nowTime);
+			stateList[j][0].pos[0] = NodeZ.GetValue(nowTime)/5.;
 		}
 
 		glPushMatrix();
@@ -988,6 +1020,8 @@ InitLists( )
 	glutSetWindow( MainWindow );
 
 	// create the object:
+
+	int object = -1;
 
 	ObjList = glGenLists(1);
 	glPushMatrix();
