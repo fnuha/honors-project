@@ -22,7 +22,7 @@
 #include <GL/glu.h>
 #include "glut.h"
 
-#define PICK_TOL
+#define PICK_TOL 10.
 #define PICK_BUFFER_SIZE 256
 
 //	This is a sample OpenGL / GLUT program
@@ -181,6 +181,7 @@ int		ActiveButton;			// current button that is down
 GLuint	AxesList;				// list to hold the axes
 int		AxesOn;					// != 0 means to draw the axes
 GLuint	ObjList;				// object display list
+GLuint	LineList;				// line display list
 int		DebugOn;				// != 0 means to print debugging info
 int		DepthCueOn;				// != 0 means to use intensity depth cueing
 int		DepthBufferOn;			// != 0 means to use the z-buffer
@@ -220,12 +221,6 @@ void	Resize( int, int );
 void	Visibility( int );
 
 void			Axes( float );
-void			HsvRgb( float[3], float [3] );
-void			Cross(float[3], float[3], float[3]);
-float			Dot(float [3], float [3]);
-float			Unit(float [3], float [3]);
-float			Unit(float [3]);
-
 // utility to create an array from 3 separate values:
 
 float *
@@ -271,14 +266,8 @@ MulArray3(float factor, float a, float b, float c )
 // these are here for when you need them -- just uncomment the ones you need:
 
 #include "setmaterial.cpp"
-//#include "setlight.cpp"
-#include "osusphere.cpp"
-//#include "osucone.cpp"
-//#include "osutorus.cpp"
-//#include "bmptotexture.cpp"
-//#include "loadobjfile.cpp"
 #include "keytime.cpp"
-//#include "glslprogram.cpp"
+
 
 Keytimes NodeZ;
 
@@ -290,6 +279,10 @@ int		rows = 10;
 int		cols = 10;
 float	k = 5.;
 float	damp = 3.;
+int		ptSize = 4;
+float	gapSize = 2.;
+bool	SomethingPicked;
+int		Nhits;
 
 struct derivs {
 	float vel[3];
@@ -302,13 +295,12 @@ struct nodeState {
 	float acc[3];
 };
 
-struct node {
-	struct nodeState nodeState;
-	struct derivs derivs;
-};
+//struct node {
+//	struct nodeState nodeState;
+//	struct derivs derivs;
+//};
 
 //float nodetime;
-
 
 nodeState** stateList; //[rows][cols]
 derivs** derivList;
@@ -316,7 +308,6 @@ int		Freeze = 0; //0 means no freeze, 1 means yes freeze
 
 unsigned int PickBuffer[PICK_BUFFER_SIZE];
 int RenderMode; //GL_RENDER vs GL_SELECT mode
-
 
 void getOneDDerivs() {
 
@@ -414,7 +405,6 @@ void InitArray(int cols, int rows) {
 }
 
 
-
 // main program:
 
 int
@@ -489,8 +479,8 @@ Animate( )
 void
 Display( )
 {
-	if (DebugOn != 0)
-		fprintf(stderr, "Starting Display.\n");
+	//if (DebugOn != 0)
+		//fprintf(stderr, "Starting Display.\n");
 
 	// set which window we want to do the graphics into:
 	glutSetWindow( MainWindow );
@@ -526,6 +516,22 @@ Display( )
 
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity( );
+
+
+	if (RenderMode == GL_SELECT)
+	{
+		int viewport[4];
+		glGetIntegerv(GL_VIEWPORT, viewport);
+		if (DebugOn)
+		{
+			fprintf(stderr, "Xmouse, Ymouse' = %d, %d\n", Xmouse, vy - Ymouse);
+			fprintf(stderr, "viewport = %d, %d, %d, %d\n",
+				viewport[0], viewport[1], viewport[2], viewport[3]);
+		}
+		gluPickMatrix((double)Xmouse, (double)(vy - Ymouse), PICK_TOL, PICK_TOL, viewport);
+	}
+
+
 	if( NowProjection == ORTHO )
 		glOrtho( -2.f, 2.f,     -2.f, 2.f,     0.1f, 1000.f );
 	else
@@ -585,6 +591,12 @@ Display( )
 	// since we are using glScalef( ), be sure the normals get unitized:
 
 	glEnable( GL_NORMALIZE );
+
+	if (RenderMode == GL_SELECT)
+	{
+		glInitNames();
+		glPushName(-1);
+	}
 	
 	int x = 0;
 
@@ -596,29 +608,58 @@ Display( )
 		}
 
 		glPushMatrix();
-		glTranslatef(stateList[0][j].pos[0], stateList[0][j].pos[1], stateList[0][j].pos[2]);
-		glLoadName(x);
-		glCallList(ObjList);
+			glTranslatef(stateList[0][j].pos[0], stateList[0][j].pos[1], stateList[0][j].pos[2]);
+			glCallList(ObjList);
 		glPopMatrix();
 
-		x++;
 	}
 	
 	if (Freeze != 1) {
 		advOneTimeStep();
 	}
 
+	char str[100];
+
 	for (int i = 1; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
-			glPushMatrix();
-			glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
-			glLoadName(x);
-			glCallList(ObjList);
-			glPopMatrix();
+			if (RenderMode == GL_SELECT) {
+				glPushMatrix();
+				glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+				glLoadName(x);
+				glCallList(ObjList);
+				glPopMatrix();
+			}
+			else {
+				glPushMatrix();
+				glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+				glCallList(ObjList);
+				glPopMatrix();
+			}
 			x++;
+			sprintf(str, "name = %d", x);
+			
 		}
 
 	}
+
+	/*for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			if (i != rows - 1) {
+				glBegin(GL_LINES);
+				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+				glVertex3f(stateList[i + 1][j].pos[0], stateList[i + 1][j].pos[1], stateList[i + 1][j].pos[2]);
+				glEnd();
+
+			}
+			if (j != cols - 1) {
+				glBegin(GL_LINES);
+				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+				glVertex3f(stateList[i][j + 1].pos[0], stateList[i][j + 1].pos[1], stateList[i][j + 1].pos[2]);
+				glEnd();
+			}
+		}
+
+	}*/
 
 	
 
@@ -638,11 +679,7 @@ Display( )
 	// a good use for thefirst one might be to have your name on the screen
 	// a good use for the second one might be to have vertex numbers on the screen alongside each vertex
 
-	glDisable( GL_DEPTH_TEST );
-	glColor3f( 0.f, 1.f, 1.f );
-	//DoRasterString( 0.f, 1.f, 0.f, (char *)"Text That Moves" );
-
-
+	
 	// draw some gratuitous text that is fixed on the screen:
 	//
 	// the projection matrix is reset to define a scene whose
@@ -653,18 +690,24 @@ Display( )
 	// the modelview matrix is reset to identity as we don't
 	// want to transform these coordinates
 
-	glDisable( GL_DEPTH_TEST );
-	glMatrixMode( GL_PROJECTION );
-	glLoadIdentity( );
-	gluOrtho2D( 0.f, 100.f,     0.f, 100.f );
-	glMatrixMode( GL_MODELVIEW );
-	glLoadIdentity( );
-	glColor3f( 1.f, 1.f, 1.f );
-	//DoRasterString( 5.f, 5.f, 0.f, (char *)"Text That Doesn't" );
+	if (RenderMode == GL_RENDER)
+	{
+		glDisable(GL_DEPTH_TEST);
+		glMatrixMode(GL_PROJECTION);
+		glLoadIdentity();
+		gluOrtho2D(0., 100., 0., 100.);
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+		glColor3f(1., 1., 1.);
+		char str[1024];
+		sprintf(str, "NumHits = %d", Nhits);
+		DoRasterString(5., 5., 0., str);
+	}
 
 	// swap the double-buffered framebuffers:
 
-	glutSwapBuffers( );
+	if (RenderMode == GL_RENDER)
+		glutSwapBuffers();
 
 	// be sure the graphics buffer has been sent:
 	// note: be sure to use glFlush( ) here, not glFinish( ) !
@@ -993,7 +1036,7 @@ InitGraphics( )
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
 
-			stateList[i][j].pos[0] = j;
+			stateList[i][j].pos[0] = j/(gapSize);
 			stateList[i][j].pos[1] = -i;
 			stateList[i][j].pos[2] = 0;
 
@@ -1027,18 +1070,22 @@ InitLists( )
 	glPushMatrix();
 	SetMaterial(1.f, 1.f, 1.f, 30.f);
 	glNewList(ObjList, GL_COMPILE);
-	OsuSphere(0.05, 30, 30);
+	glPointSize(ptSize);
+	glBegin(GL_POINTS);
+	glVertex3f(0, 0, 0);
+	glEnd();
 	glPopMatrix();
 	glEndList();
 
+
 	// create the axes:
 
-	AxesList = glGenLists( 1 );
+	/*AxesList = glGenLists( 1 );
 	glNewList( AxesList, GL_COMPILE );
 		glLineWidth( AXES_WIDTH );
 			Axes( 1.5 );
 		glLineWidth( 1. );
-	glEndList( );
+	glEndList( );*/
 }
 
 
@@ -1133,16 +1180,6 @@ MouseButton( int button, int state, int x, int y )
 
 	// button down sets the bit, up clears the bit:
 
-	if ((ActiveButton & LEFT) && (state == GLUT_DOWN)) {
-		RenderMode = GL_SELECT;
-		glRenderMode(GL_SELECT);
-		Display();
-		RenderMode = GL_RENDER;
-		int Nhits = glRenderMode(GL_RENDER);
-
-		fprintf(stderr, "#pick hits = %d\n", Nhits);
-	}
-
 	if( state == GLUT_DOWN )
 	{
 		Xmouse = x;
@@ -1152,6 +1189,45 @@ MouseButton( int button, int state, int x, int y )
 	else
 	{
 		ActiveButton &= ~b;		// clear the proper bit
+	}
+
+	SomethingPicked = false;
+
+	if ((ActiveButton & LEFT) != 0 && Freeze == 1) {
+
+		RenderMode = GL_SELECT;
+		glRenderMode(GL_SELECT);
+		Display();
+		RenderMode = GL_RENDER;
+		Nhits = glRenderMode(GL_RENDER);
+
+		if (Nhits == 0) {
+			RenderMode = GL_SELECT;
+			glRenderMode(GL_SELECT);
+			Display();
+			RenderMode = GL_RENDER;
+			Nhits = glRenderMode(GL_RENDER);
+		}
+
+		fprintf(stderr, "#pick hits = %d\n", Nhits);
+
+		int closestItem = -1;
+		int closestZ = 0xffffffff;
+
+		int index = 0;
+		for (int i = 0; i < Nhits; i++)
+		{
+			int numItems = PickBuffer[i];
+			int zmin = PickBuffer[i];
+			int zmax = PickBuffer[i];
+			if (DebugOn)
+			{
+				fprintf(stderr, "Hit # %2d found %2d items on the name stack\n", i, numItems);
+				fprintf(stderr, "\tZmin = %8u, Zmax = %8u\n", zmin, zmax);
+			}
+
+			
+		}
 	}
 
 	glutSetWindow(MainWindow);
@@ -1211,6 +1287,7 @@ Reset( )
 	NowProjection = PERSP;
 	Xrot = Yrot = 0.;
 	Freeze = 0;
+	Nhits = 0;
 
 
 	for (int k = 0; k < cols; k++) { //cols
@@ -1372,133 +1449,3 @@ Axes( float length )
 }
 
 
-// function to convert HSV to RGB
-// 0.  <=  s, v, r, g, b  <=  1.
-// 0.  <= h  <=  360.
-// when this returns, call:
-//		glColor3fv( rgb );
-
-void
-HsvRgb( float hsv[3], float rgb[3] )
-{
-	// guarantee valid input:
-
-	float h = hsv[0] / 60.f;
-	while( h >= 6. )	h -= 6.;
-	while( h <  0. ) 	h += 6.;
-
-	float s = hsv[1];
-	if( s < 0. )
-		s = 0.;
-	if( s > 1. )
-		s = 1.;
-
-	float v = hsv[2];
-	if( v < 0. )
-		v = 0.;
-	if( v > 1. )
-		v = 1.;
-
-	// if sat==0, then is a gray:
-
-	if( s == 0.0 )
-	{
-		rgb[0] = rgb[1] = rgb[2] = v;
-		return;
-	}
-
-	// get an rgb from the hue itself:
-	
-	float i = (float)floor( h );
-	float f = h - i;
-	float p = v * ( 1.f - s );
-	float q = v * ( 1.f - s*f );
-	float t = v * ( 1.f - ( s * (1.f-f) ) );
-
-	float r=0., g=0., b=0.;			// red, green, blue
-	switch( (int) i )
-	{
-		case 0:
-			r = v;	g = t;	b = p;
-			break;
-	
-		case 1:
-			r = q;	g = v;	b = p;
-			break;
-	
-		case 2:
-			r = p;	g = v;	b = t;
-			break;
-	
-		case 3:
-			r = p;	g = q;	b = v;
-			break;
-	
-		case 4:
-			r = t;	g = p;	b = v;
-			break;
-	
-		case 5:
-			r = v;	g = p;	b = q;
-			break;
-	}
-
-
-	rgb[0] = r;
-	rgb[1] = g;
-	rgb[2] = b;
-}
-
-void
-Cross(float v1[3], float v2[3], float vout[3])
-{
-	float tmp[3];
-	tmp[0] = v1[1] * v2[2] - v2[1] * v1[2];
-	tmp[1] = v2[0] * v1[2] - v1[0] * v2[2];
-	tmp[2] = v1[0] * v2[1] - v2[0] * v1[1];
-	vout[0] = tmp[0];
-	vout[1] = tmp[1];
-	vout[2] = tmp[2];
-}
-
-float
-Dot(float v1[3], float v2[3])
-{
-	return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
-}
-
-
-float
-Unit(float vin[3], float vout[3])
-{
-	float dist = vin[0] * vin[0] + vin[1] * vin[1] + vin[2] * vin[2];
-	if (dist > 0.0)
-	{
-		dist = sqrtf(dist);
-		vout[0] = vin[0] / dist;
-		vout[1] = vin[1] / dist;
-		vout[2] = vin[2] / dist;
-	}
-	else
-	{
-		vout[0] = vin[0];
-		vout[1] = vin[1];
-		vout[2] = vin[2];
-	}
-	return dist;
-}
-
-
-float
-Unit( float v[3] )
-{
-	float dist = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-	if (dist > 0.0)
-	{
-		dist = sqrtf(dist);
-		v[0] /= dist;
-		v[1] /= dist;
-		v[2] /= dist;
-	}
-	return dist;
-}
