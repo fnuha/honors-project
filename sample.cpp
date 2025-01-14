@@ -293,6 +293,7 @@ struct nodeState {
 	float pos[3];
 	float vel[3];
 	float acc[3];
+	bool isPicked;
 };
 
 //struct node {
@@ -400,6 +401,28 @@ void InitArray(int cols, int rows) {
 	for (int i = 0; i < cols; i++) {
 		derivList[i] = new derivs[rows];
 		stateList[i] = new nodeState[rows];
+	}
+
+	for (int k = 0; k < cols; k++) { //cols
+		for (int i = 1; i < rows; i++) { // row
+			for (int j = 0; j < 3; j++) { // three dimensions x y and z
+				stateList[i][j].pos[0] = j;
+				stateList[i][j].pos[1] = -i;
+				stateList[i][j].pos[2] = 0;
+
+				stateList[i][j].vel[0] = 0;
+				stateList[i][j].vel[1] = 0;
+				stateList[i][j].vel[2] = 0;
+
+				stateList[i][k].acc[j] = 0;
+
+				derivList[i][k].vel[j] = 0;
+				derivList[i][k].acc[j] = 0;
+				stateList[i][j].isPicked = false;
+				//stateList[i][k].time = stateList[i][k].time + 0.05;
+			}
+
+		}
 	}
 
 }
@@ -598,7 +621,7 @@ Display( )
 		glPushName(-1);
 	}
 	
-	int x = 0;
+	GLuint x = 0;
 
 	for (int j = 0; j < cols; j++) {
 
@@ -628,6 +651,7 @@ Display( )
 				glLoadName(x);
 				glCallList(ObjList);
 				glPopMatrix();
+				fprintf(stderr, "current print is %d", x);
 			}
 			else {
 				glPushMatrix();
@@ -636,7 +660,6 @@ Display( )
 				glPopMatrix();
 			}
 			x++;
-			sprintf(str, "name = %d", x);
 			
 		}
 
@@ -1217,17 +1240,31 @@ MouseButton( int button, int state, int x, int y )
 		int index = 0;
 		for (int i = 0; i < Nhits; i++)
 		{
-			int numItems = PickBuffer[i];
-			int zmin = PickBuffer[i];
-			int zmax = PickBuffer[i];
+			int numItems = PickBuffer[index++];
+			int zmin = PickBuffer[index++];
+			int zmax = PickBuffer[index++];
 			if (DebugOn)
 			{
 				fprintf(stderr, "Hit # %2d found %2d items on the name stack\n", i, numItems);
 				fprintf(stderr, "\tZmin = %8u, Zmax = %8u\n", zmin, zmax);
 			}
 
-			
+			for (int j = 0; j < numItems; j++) {
+
+				int item = PickBuffer[index++];
+				SomethingPicked = true;
+				if (zmin < closestZ) {
+					closestZ = zmin;
+					closestItem = item;
+				}
+
+			}
+					
 		}
+
+		
+
+
 	}
 
 	glutSetWindow(MainWindow);
@@ -1305,6 +1342,7 @@ Reset( )
 
 				derivList[i][k].vel[j] = 0;
 				derivList[i][k].acc[j] = 0;
+				stateList[i][j].isPicked = false;
 				//stateList[i][k].time = stateList[i][k].time + 0.05;
 			}
 
