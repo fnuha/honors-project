@@ -25,23 +25,7 @@
 #define PICK_TOL 10.
 #define PICK_BUFFER_SIZE 256
 
-//	This is a sample OpenGL / GLUT program
-//
-//	The objective is to draw a 3d object and change the color of the axes
-//		with a glut menu
-//
-//	The left mouse button does rotation
-//	The middle mouse button does scaling
-//	The user interface allows:
-//		1. The axes to be turned on and off
-//		2. The color of the axes to be changed
-//		3. Debugging to be turned on and off
-//		4. Depth cueing to be turned on and off
-//		5. The projection to be changed
-//		6. The transformations to be reset
-//		7. The program to quit
-//
-//	Author:			Joe Graphics
+//	Author:			Faaizah Nuha
 
 // title of these windows:
 
@@ -181,6 +165,7 @@ int		ActiveButton;			// current button that is down
 GLuint	AxesList;				// list to hold the axes
 int		AxesOn;					// != 0 means to draw the axes
 GLuint	ObjList;				// object display list
+GLuint	PickedObjList;			// picked object display list
 GLuint	LineList;				// line display list
 int		DebugOn;				// != 0 means to print debugging info
 int		DepthCueOn;				// != 0 means to use intensity depth cueing
@@ -405,7 +390,8 @@ void InitArray(int cols, int rows) {
 
 	for (int k = 0; k < cols; k++) { //cols
 		for (int i = 1; i < rows; i++) { // row
-			for (int j = 0; j < 3; j++) { // three dimensions x y and z
+			for (int j = 0; j < 3; j++) {
+				// three dimensions x y and z
 				stateList[i][j].pos[0] = j;
 				stateList[i][j].pos[1] = -i;
 				stateList[i][j].pos[2] = 0;
@@ -418,10 +404,10 @@ void InitArray(int cols, int rows) {
 
 				derivList[i][k].vel[j] = 0;
 				derivList[i][k].acc[j] = 0;
-				stateList[i][j].isPicked = false;
+
+				stateList[i][k].isPicked = false;
 				//stateList[i][k].time = stateList[i][k].time + 0.05;
 			}
-
 		}
 	}
 
@@ -621,7 +607,6 @@ Display( )
 		glPushName(-1);
 	}
 	
-	GLuint x = 0;
 
 	for (int j = 0; j < cols; j++) {
 
@@ -641,29 +626,45 @@ Display( )
 		advOneTimeStep();
 	}
 
-	char str[100];
 
-	for (int i = 1; i < rows; i++) {
-		for (int j = 0; j < cols; j++) {
-			if (RenderMode == GL_SELECT) {
-				glPushMatrix();
-				glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+	GLuint x = 0;
+
+	glPointSize(5);
+	if (RenderMode == GL_SELECT) {
+		for (int i = 1; i < rows; i++) {
+			for (int j = 0; j < cols; j++) {
 				glLoadName(x);
-				glCallList(ObjList);
-				glPopMatrix();
-				fprintf(stderr, "current print is %d", x);
+				fprintf(stderr, "%d %d: %s\n", i, j, stateList[i][j].isPicked ? "picked" : "not picked");
+				glBegin(GL_POINTS);
+				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+				glEnd();
+				x++;
 			}
-			else {
-				glPushMatrix();
-				glTranslatef(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
-				glCallList(ObjList);
-				glPopMatrix();
-			}
-			x++;
-			
 		}
-
+	
 	}
+
+	if (RenderMode == GL_RENDER) {
+		glBegin(GL_POINTS);
+
+		for (int i = 1; i < rows; i++) {
+			for (int j = 0; j < cols; j++) {
+
+
+				if (!stateList[i][j].isPicked) {
+					glColor3f(0., 0.5, 0.5);
+				}
+				else {
+					glColor3f(0.5, 0.5, 0.5);
+				}
+				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+
+
+			}
+		}
+		glEnd();
+	}
+
 
 	/*for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
@@ -1091,8 +1092,19 @@ InitLists( )
 
 	ObjList = glGenLists(1);
 	glPushMatrix();
-	SetMaterial(1.f, 1.f, 1.f, 30.f);
+	//SetMaterial(1.f, 1.f, 1.f, 30.f);
 	glNewList(ObjList, GL_COMPILE);
+	glPointSize(ptSize);
+	glBegin(GL_POINTS);
+	glVertex3f(0, 0, 0);
+	glEnd();
+	glPopMatrix();
+	glEndList();
+
+	PickedObjList = glGenLists(1);
+	glPushMatrix();
+	//SetMaterial(1.f, 0.f, 0.f, 30.f);
+	glNewList(PickedObjList, GL_COMPILE);
 	glPointSize(ptSize);
 	glBegin(GL_POINTS);
 	glVertex3f(0, 0, 0);
@@ -1216,7 +1228,7 @@ MouseButton( int button, int state, int x, int y )
 
 	SomethingPicked = false;
 
-	if ((ActiveButton & LEFT) != 0 && Freeze == 1) {
+	if ((ActiveButton & LEFT) != 0) {
 
 		RenderMode = GL_SELECT;
 		glRenderMode(GL_SELECT);
@@ -1224,7 +1236,7 @@ MouseButton( int button, int state, int x, int y )
 		RenderMode = GL_RENDER;
 		Nhits = glRenderMode(GL_RENDER);
 
-		if (Nhits == 0) {
+		if (true) {
 			RenderMode = GL_SELECT;
 			glRenderMode(GL_SELECT);
 			Display();
@@ -1252,11 +1264,8 @@ MouseButton( int button, int state, int x, int y )
 			for (int j = 0; j < numItems; j++) {
 
 				int item = PickBuffer[index++];
-				SomethingPicked = true;
-				if (zmin < closestZ) {
-					closestZ = zmin;
-					closestItem = item;
-				}
+				fprintf(stderr, "\nthing: %u\n", item);
+				stateList[(item / 10) + 1][item % 10].isPicked = !(stateList[(item / 10) + 1][item % 10].isPicked);
 
 			}
 					
