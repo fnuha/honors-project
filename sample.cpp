@@ -25,7 +25,7 @@
 #define PICK_TOL 10.
 #define PICK_BUFFER_SIZE 256
 
-//	Author:			Faaizah Nuha
+//	Author:			Faaizah Nuha, adapted from Mike Bailey
 
 // title of these windows:
 
@@ -158,15 +158,18 @@ const int MS_PER_CYCLE = 10000;		// 10000 milliseconds = 10 seconds
 //#define DEMO_Z_FIGHTING
 //#define DEMO_DEPTH_BUFFER
 
+// row goes across --> > >
+// column goes down  V V V
+
 
 // non-constant global variables:
 
 int		ActiveButton;			// current button that is down
 GLuint	AxesList;				// list to hold the axes
 int		AxesOn;					// != 0 means to draw the axes
-GLuint	ObjList;				// object display list
-GLuint	PickedObjList;			// picked object display list
-GLuint	LineList;				// line display list
+//GLuint	ObjList;				// object display list
+//GLuint	PickedObjList;			// picked object display list
+//GLuint	LineList;				// line display list
 int		DebugOn;				// != 0 means to print debugging info
 int		DepthCueOn;				// != 0 means to use intensity depth cueing
 int		DepthBufferOn;			// != 0 means to use the z-buffer
@@ -288,7 +291,7 @@ struct nodeState {
 
 //float nodetime;
 
-nodeState** stateList; //[rows][cols]
+nodeState** stateList; //[rows >][cols V]
 derivs** derivList;
 int		Freeze = 0; //0 means no freeze, 1 means yes freeze
 
@@ -297,8 +300,8 @@ int RenderMode; //GL_RENDER vs GL_SELECT mode
 
 void getOneDDerivs() {
 
-		for (int i = 1; i < rows; i++) { // rows
-			for (int j = 0; j < cols; j++) { // cols
+		for (int i = 1; i < rows; i++) { // plus one row v
+			for (int j = 0; j < cols; j++) { // plus one col >
 				float sumfy = -Weight; // downwards weight
 				float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1]; // prev node pos minus curr node pos to find upwards force
 				float stretch = ym - LENGTH0; // upwards stretch minus default stretch w no forces
@@ -317,7 +320,7 @@ void getOneDDerivs() {
 				sumfz += k * stretch;
 				sumfz -= damp * derivList[i][j].vel[2];
 
-				if (i > 0 && j < cols - 1) { 
+				if (i > 0 && j < cols - 1) { //if past first row and not at end col
 					float dx = stateList[i - 1][j + 1].pos[0] - stateList[i][j].pos[0];
 					float dy = stateList[i - 1][j + 1].pos[1] - stateList[i][j].pos[1];
 					float dz = stateList[i - 1][j + 1].pos[2] - stateList[i][j].pos[2];
@@ -334,7 +337,7 @@ void getOneDDerivs() {
 
 				}
 
-				if (i < rows - 1 && j > 0) {
+				if (i < rows - 1 && j > 0) { // if not at bottom row and not at first col
 					float dx = stateList[i + 1][j - 1].pos[0] - stateList[i][j].pos[0];
 					float dy = stateList[i + 1][j - 1].pos[1] - stateList[i][j].pos[1];
 					float dz = stateList[i + 1][j - 1].pos[2] - stateList[i][j].pos[2];
@@ -363,14 +366,14 @@ void getOneDDerivs() {
 
 }
 
+
 void advOneTimeStep() {
 	getOneDDerivs();
-	//nodetime = nodetime + 0.05;
-	for (int k = 0; k < cols; k++) { //cols
-		for (int i = 1; i < rows; i++) { // row
-			for (int j = 0; j < 3; j++) { // three dimensions x y and z
-				stateList[i][k].pos[j] = stateList[i][k].pos[j] + (derivList[i][k].vel[j] * 0.05);
-				stateList[i][k].vel[j] = stateList[i][k].vel[j] + (derivList[i][k].acc[j] * 0.05);
+	for (int i = 1; i < rows; i++) { // plus one row V
+		for (int j = 0; j < cols; j++) { // plus one col >
+			for (int k = 0; k < 3; k++) { // three dimensions x y and z
+				stateList[i][j].pos[k] = stateList[i][j].pos[k] + (derivList[i][j].vel[k] * 0.05);
+				stateList[i][j].vel[k] = stateList[i][j].vel[k] + (derivList[i][j].acc[k] * 0.05);
 			}
 
 		}
@@ -380,37 +383,34 @@ void advOneTimeStep() {
 
 void InitArray(int cols, int rows) {
 
-	stateList = new nodeState* [cols];
-	derivList = new derivs* [cols];
+	stateList = new nodeState* [rows];
+	derivList = new derivs* [rows];
 
-	for (int i = 0; i < cols; i++) {
-		derivList[i] = new derivs[rows];
-		stateList[i] = new nodeState[rows];
+	for (int i = 0; i < rows; i++) {
+		derivList[i] = new derivs[cols];
+		stateList[i] = new nodeState[cols];
 	}
 
-	for (int k = 0; k < cols; k++) { //cols
-		for (int i = 1; i < rows; i++) { // row
-			for (int j = 0; j < 3; j++) {
+	for (int i = 0; i < rows; i++) { //plus one cols >
+		for (int j = 0; j < cols; j++) { // plus one row V
+			for (int k = 0; k < 3; k++) { //x, y, z
 				// three dimensions x y and z
-				stateList[i][j].pos[0] = j;
-				stateList[i][j].pos[1] = -i;
-				stateList[i][j].pos[2] = 0;
 
-				stateList[i][j].vel[0] = 0;
-				stateList[i][j].vel[1] = 0;
-				stateList[i][j].vel[2] = 0;
+				stateList[i][j].vel[k] = 0;
 
-				stateList[i][k].acc[j] = 0;
+				stateList[i][j].acc[k] = 0;
 
-				derivList[i][k].vel[j] = 0;
-				derivList[i][k].acc[j] = 0;
+				derivList[i][j].vel[k] = 0;
+				derivList[i][j].acc[k] = 0;
 
-				stateList[i][k].isPicked = false;
-				//stateList[i][k].time = stateList[i][k].time + 0.05;
+				stateList[i][j].isPicked = false;
 			}
+			stateList[i][j].pos[0] = j;
+			stateList[i][j].pos[1] = -i;
+			stateList[i][j].pos[2] = 0;
+			stateList[i][j].isPicked = false;
 		}
 	}
-
 }
 
 
@@ -607,22 +607,14 @@ Display( )
 		glPushName(-1);
 	}
 	
+	if (Freeze != 1) {
 
-	for (int j = 0; j < cols; j++) {
+		for (int j = 0; j < rows; j++) {
 
-		if (Freeze != 1) {
+			stateList[j][0].pos[0] = NodeZ.GetValue(nowTime) / 5.;
 
-			stateList[j][0].pos[0] = NodeZ.GetValue(nowTime)/5.;
 		}
 
-		glPushMatrix();
-			glTranslatef(stateList[0][j].pos[0], stateList[0][j].pos[1], stateList[0][j].pos[2]);
-			glCallList(ObjList);
-		glPopMatrix();
-
-	}
-	
-	if (Freeze != 1) {
 		advOneTimeStep();
 	}
 
@@ -631,8 +623,8 @@ Display( )
 
 	glPointSize(5);
 	if (RenderMode == GL_SELECT) {
-		for (int i = 1; i < rows; i++) {
-			for (int j = 0; j < cols; j++) {
+		for (int i = 0; i < rows; i++) { //rows + 1 goes V
+			for (int j = 0; j < cols; j++) { // cols + 1 goes ->
 				glLoadName(x);
 				fprintf(stderr, "%d %d: %s\n", i, j, stateList[i][j].isPicked ? "picked" : "not picked");
 				glBegin(GL_POINTS);
@@ -647,8 +639,8 @@ Display( )
 	if (RenderMode == GL_RENDER) {
 		glBegin(GL_POINTS);
 
-		for (int i = 1; i < rows; i++) {
-			for (int j = 0; j < cols; j++) {
+		for (int i = 0; i < rows; i++) { //rows + 1 goes V
+			for (int j = 0; j < cols; j++) { //cols + 1 goes ->
 
 
 				if (!stateList[i][j].isPicked) {
@@ -664,26 +656,6 @@ Display( )
 		}
 		glEnd();
 	}
-
-
-	/*for (int i = 0; i < rows; i++) {
-		for (int j = 0; j < cols; j++) {
-			if (i != rows - 1) {
-				glBegin(GL_LINES);
-				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
-				glVertex3f(stateList[i + 1][j].pos[0], stateList[i + 1][j].pos[1], stateList[i + 1][j].pos[2]);
-				glEnd();
-
-			}
-			if (j != cols - 1) {
-				glBegin(GL_LINES);
-				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
-				glVertex3f(stateList[i][j + 1].pos[0], stateList[i][j + 1].pos[1], stateList[i][j + 1].pos[2]);
-				glEnd();
-			}
-		}
-
-	}*/
 
 	
 
@@ -1057,7 +1029,7 @@ InitGraphics( )
 	NodeZ.AddTimeValue(7.5, 0.0);
 	NodeZ.AddTimeValue(10.0, 1.0);
 
-	for (int i = 0; i < rows; i++) {
+	for (int i = 0; i < rows; i++) { 
 		for (int j = 0; j < cols; j++) {
 
 			stateList[i][j].pos[0] = j/(gapSize);
@@ -1090,27 +1062,27 @@ InitLists( )
 
 	int object = -1;
 
-	ObjList = glGenLists(1);
-	glPushMatrix();
-	//SetMaterial(1.f, 1.f, 1.f, 30.f);
-	glNewList(ObjList, GL_COMPILE);
-	glPointSize(ptSize);
-	glBegin(GL_POINTS);
-	glVertex3f(0, 0, 0);
-	glEnd();
-	glPopMatrix();
-	glEndList();
+	//ObjList = glGenLists(1);
+	//glPushMatrix();
+	////SetMaterial(1.f, 1.f, 1.f, 30.f);
+	//glNewList(ObjList, GL_COMPILE);
+	//glPointSize(ptSize);
+	//glBegin(GL_POINTS);
+	//glVertex3f(0, 0, 0);
+	//glEnd();
+	//glPopMatrix();
+	//glEndList();
 
-	PickedObjList = glGenLists(1);
-	glPushMatrix();
-	//SetMaterial(1.f, 0.f, 0.f, 30.f);
-	glNewList(PickedObjList, GL_COMPILE);
-	glPointSize(ptSize);
-	glBegin(GL_POINTS);
-	glVertex3f(0, 0, 0);
-	glEnd();
-	glPopMatrix();
-	glEndList();
+	//PickedObjList = glGenLists(1);
+	//glPushMatrix();
+	////SetMaterial(1.f, 0.f, 0.f, 30.f);
+	//glNewList(PickedObjList, GL_COMPILE);
+	//glPointSize(ptSize);
+	//glBegin(GL_POINTS);
+	//glVertex3f(0, 0, 0);
+	//glEnd();
+	//glPopMatrix();
+	//glEndList();
 
 
 	// create the axes:
@@ -1264,8 +1236,8 @@ MouseButton( int button, int state, int x, int y )
 			for (int j = 0; j < numItems; j++) {
 
 				int item = PickBuffer[index++];
-				fprintf(stderr, "\nthing: %u\n", item);
-				stateList[(item / 10) + 1][item % 10].isPicked = !(stateList[(item / 10) + 1][item % 10].isPicked);
+				fprintf(stderr, "\nthing: %u\nrow: %u\ncol: %u\n", item, (item / rows), item % cols);
+				stateList[(item / cols)][item % cols].isPicked = !(stateList[(item / cols)][item % cols].isPicked);
 
 			}
 					
@@ -1336,25 +1308,24 @@ Reset( )
 	Nhits = 0;
 
 
-	for (int k = 0; k < cols; k++) { //cols
-		for (int i = 1; i < rows; i++) { // row
-			for (int j = 0; j < 3; j++) { // three dimensions x y and z
-				stateList[i][j].pos[0] = j;
-				stateList[i][j].pos[1] = -i;
-				stateList[i][j].pos[2] = 0;
+	for (int i = 0; i < rows; i++) { //plus one cols >
+		for (int j = 0; j < cols; j++) { // plus one row V
+			for (int k = 0; k < 3; k++) { //x, y, z
+				// three dimensions x y and z
 
-				stateList[i][j].vel[0] = 0;
-				stateList[i][j].vel[1] = 0;
-				stateList[i][j].vel[2] = 0;
+				stateList[i][j].vel[k] = 0;
 
-				stateList[i][k].acc[j] = 0;
+				stateList[i][j].acc[k] = 0;
 
-				derivList[i][k].vel[j] = 0;
-				derivList[i][k].acc[j] = 0;
+				derivList[i][j].vel[k] = 0;
+				derivList[i][j].acc[k] = 0;
+
 				stateList[i][j].isPicked = false;
-				//stateList[i][k].time = stateList[i][k].time + 0.05;
 			}
-
+			stateList[i][j].pos[0] = j;
+			stateList[i][j].pos[1] = -i;
+			stateList[i][j].pos[2] = 0;
+			stateList[i][j].isPicked = false;
 		}
 	}
 
