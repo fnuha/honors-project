@@ -18,9 +18,10 @@
 #endif
 
 #include "glew.h"
-#include <GL/gl.h>
-#include <GL/glu.h>
+//#include <GL/gl.h>
+//#include <GL/glu.h>
 #include "glut.h"
+#include "glui.h"
 
 #define PICK_TOL 10.
 #define PICK_BUFFER_SIZE 256
@@ -284,13 +285,6 @@ struct nodeState {
 	bool isPicked;
 };
 
-//struct node {
-//	struct nodeState nodeState;
-//	struct derivs derivs;
-//};
-
-//float nodetime;
-
 nodeState** stateList; //[rows >][cols V]
 derivs** derivList;
 int		Freeze = 0; //0 means no freeze, 1 means yes freeze
@@ -442,7 +436,8 @@ main( int argc, char *argv[ ] )
 
 	// setup all the user interface stuff:
 
-	InitMenus( );
+	//InitMenus( );
+	//InitMenuWindow();
 
 
 	// draw the scene once and wait for some interaction:
@@ -488,9 +483,7 @@ Animate( )
 void
 Display( )
 {
-	//if (DebugOn != 0)
-		//fprintf(stderr, "Starting Display.\n");
-
+	
 	// set which window we want to do the graphics into:
 	glutSetWindow( MainWindow );
 
@@ -670,22 +663,6 @@ Display( )
 #endif
 
 
-	// draw some gratuitous text that just rotates on top of the scene:
-	// i commented out the actual text-drawing calls -- put them back in if you have a use for them
-	// a good use for thefirst one might be to have your name on the screen
-	// a good use for the second one might be to have vertex numbers on the screen alongside each vertex
-
-	
-	// draw some gratuitous text that is fixed on the screen:
-	//
-	// the projection matrix is reset to define a scene whose
-	// world coordinate system goes from 0-100 in each axis
-	//
-	// this is called "percent units", and is just a convenience
-	//
-	// the modelview matrix is reset to identity as we don't
-	// want to transform these coordinates
-
 	if (RenderMode == GL_RENDER)
 	{
 		glDisable(GL_DEPTH_TEST);
@@ -859,6 +836,10 @@ ElapsedSeconds( )
 	return (float)ms / 1000.f;
 }
 
+void
+InitWindowMenu() {
+
+}
 
 // initialize the glui window:
 
@@ -1029,19 +1010,6 @@ InitGraphics( )
 	NodeZ.AddTimeValue(7.5, 0.0);
 	NodeZ.AddTimeValue(10.0, 1.0);
 
-	for (int i = 0; i < rows; i++) { 
-		for (int j = 0; j < cols; j++) {
-
-			stateList[i][j].pos[0] = j/(gapSize);
-			stateList[i][j].pos[1] = -i;
-			stateList[i][j].pos[2] = 0;
-
-			stateList[i][j].vel[0] = 0;
-			stateList[i][j].vel[1] = 0;
-			stateList[i][j].vel[2] = 0;
-		}
-	}
-
 }
 
 
@@ -1062,37 +1030,6 @@ InitLists( )
 
 	int object = -1;
 
-	//ObjList = glGenLists(1);
-	//glPushMatrix();
-	////SetMaterial(1.f, 1.f, 1.f, 30.f);
-	//glNewList(ObjList, GL_COMPILE);
-	//glPointSize(ptSize);
-	//glBegin(GL_POINTS);
-	//glVertex3f(0, 0, 0);
-	//glEnd();
-	//glPopMatrix();
-	//glEndList();
-
-	//PickedObjList = glGenLists(1);
-	//glPushMatrix();
-	////SetMaterial(1.f, 0.f, 0.f, 30.f);
-	//glNewList(PickedObjList, GL_COMPILE);
-	//glPointSize(ptSize);
-	//glBegin(GL_POINTS);
-	//glVertex3f(0, 0, 0);
-	//glEnd();
-	//glPopMatrix();
-	//glEndList();
-
-
-	// create the axes:
-
-	/*AxesList = glGenLists( 1 );
-	glNewList( AxesList, GL_COMPILE );
-		glLineWidth( AXES_WIDTH );
-			Axes( 1.5 );
-		glLineWidth( 1. );
-	glEndList( );*/
 }
 
 
