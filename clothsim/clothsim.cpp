@@ -51,18 +51,21 @@ float	Time;					// used for animation, this has a value between 0. and 1.
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
 static float spin;
+GLUI* glui;
 
 Keytimes NodeZ;
 
 //changeable variables
-static GLfloat Weight = 0.4;
+static GLfloat Weight = 0.8;
 static GLfloat	LENGTH0 = 0.2;
+static GLint Moveable = 0;			// are we moving a point around
+int		moveable_x = -1;
+int		moveable_y = -1;
 int		rows = 10;
 int		cols = 10;
-float	k = 5.;
-float	damp = 3.;
+float	k = 6.5;
+float	damp = 1.0;
 int		ptSize = 4;
-float	gapSize = 2.;
 bool	SomethingPicked;
 int		Nhits;
 
@@ -77,6 +80,7 @@ struct nodeState {
 	float acc[3];
 	bool isPicked;
 	float nodeWeight;
+	float nodeLength;
 };
 
 void	Animate();
@@ -99,37 +103,123 @@ int RenderMode; //GL_RENDER vs GL_SELECT mode
 
 void getOneDDerivs() {
 
+	//change the direct neighbor node calculations + add left, right, bottom to change to reflect
+	//delta x/y/z 
+
 	for (int i = 1; i < rows; i++) { // plus one row v
 		for (int j = 0; j < cols; j++) { // plus one col >
 			float sumfy = -stateList[i][j].nodeWeight; // downwards weight
-			float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1]; // prev node pos minus curr node pos to find upwards force
-			float stretch = ym - LENGTH0; // upwards stretch minus default stretch w no forces
-			sumfy += k * stretch; //adding stretch upwards to downwards weight
-			sumfy -= damp * derivList[i][j].vel[1]; //adding velocity to stretch
+			//float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1]; // prev node pos minus curr node pos to find upwards force
+			//float stretch = ym - stateList[i][j].nodeLength; // upwards stretch minus default stretch w no forces
+			//sumfy += k * stretch; //adding stretch upwards to downwards weight
+			//sumfy -= damp * derivList[i][j].vel[1]; //adding velocity to stretch
 
 			float sumfx = 0; //no downwards weight
-			float xm = stateList[i - 1][j].pos[0] - stateList[i][j].pos[0]; //prev node minus curr node pos
-			stretch = xm; //horizontal force
-			sumfx += k * stretch; //adding stretch to movement
-			sumfx -= damp * derivList[i][j].vel[0]; //adding velocity to stretch
+			//float xm = stateList[i - 1][j].pos[0] - stateList[i][j].pos[0]; //prev node minus curr node pos
+			//stretch = xm; //horizontal force
+			//sumfx += k * stretch; //adding stretch to movement
+			//sumfx -= damp * derivList[i][j].vel[0]; //adding velocity to stretch
 
 			float sumfz = 0;
-			float zm = stateList[i - 1][j].pos[2] - stateList[i][j].pos[2];
-			stretch = zm;
-			sumfz += k * stretch;
-			sumfz -= damp * derivList[i][j].vel[2];
+			//float zm = stateList[i - 1][j].pos[2] - stateList[i][j].pos[2];
+			//stretch = zm;
+			//sumfz += k * stretch;
+			//sumfz -= damp * derivList[i][j].vel[2];
 
-			if (i > 0 && j < cols - 1) { //if past first row and not at end col
-				float dx = stateList[i - 1][j + 1].pos[0] - stateList[i][j].pos[0];
-				float dy = stateList[i - 1][j + 1].pos[1] - stateList[i][j].pos[1];
-				float dz = stateList[i - 1][j + 1].pos[2] - stateList[i][j].pos[2];
+			if (i > 0) { //above neighbor
+
+				float dx = stateList[i - 1][j].pos[0] - stateList[i][j].pos[0];
+				float dy = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1];
+				float dz = stateList[i - 1][j].pos[2] - stateList[i][j].pos[2];
 
 				float length = sqrt(dx * dx + dy * dy + dz * dz);
 				dx /= length;
 				dy /= length;
 				dz /= length;
-				float stretch2 = length - LENGTH0;
-				float force = 0.5 * stretch2;
+				float stretch2 = length - stateList[i][j].nodeLength;
+				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+
+				sumfy -= damp * derivList[i][j].vel[1]; //adding velocity to stretch
+				sumfx -= damp * derivList[i][j].vel[0]; //adding velocity to stretch
+				sumfz -= damp * derivList[i][j].vel[2];
+
+				sumfx += force * dx;
+				sumfy += force * dy;
+				sumfz += force * dz;
+
+			}
+
+			if (i < rows - 1) { //below neighbor
+
+				float dx = stateList[i + 1][j].pos[0] - stateList[i][j].pos[0];
+				float dy = stateList[i + 1][j].pos[1] - stateList[i][j].pos[1];
+				float dz = stateList[i + 1][j].pos[2] - stateList[i][j].pos[2];
+
+				float length = sqrt(dx * dx + dy * dy + dz * dz);
+				dx /= length;
+				dy /= length;
+				dz /= length;
+				float stretch2 = length - stateList[i][j].nodeLength;
+				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+
+				sumfx += force * dx;
+				sumfy += force * dy;
+				sumfz += force * dz;
+
+			}
+
+			if (j > 0) { //left neighbor
+
+				float dx = stateList[i][j - 1].pos[0] - stateList[i][j].pos[0];
+				float dy = stateList[i][j - 1].pos[1] - stateList[i][j].pos[1];
+				float dz = stateList[i][j - 1].pos[2] - stateList[i][j].pos[2];
+
+				float length = sqrt(dx * dx + dy * dy + dz * dz);
+				dx /= length;
+				dy /= length;
+				dz /= length;
+				float stretch2 = length - stateList[i][j].nodeLength;
+				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+
+				sumfx += force * dx;
+				sumfy += force * dy;
+				sumfz += force * dz;
+
+			}
+
+			if (j < cols - 1) { //right neighbor
+
+				float dx = stateList[i][j + 1].pos[0] - stateList[i][j].pos[0];
+				float dy = stateList[i][j + 1].pos[1] - stateList[i][j].pos[1];
+				float dz = stateList[i][j + 1].pos[2] - stateList[i][j].pos[2];
+
+				float length = sqrt(dx * dx + dy * dy + dz * dz);
+				dx /= length;
+				dy /= length;
+				dz /= length;
+				float stretch2 = length - stateList[i][j].nodeLength;
+				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+
+				sumfx += force * dx;
+				sumfy += force * dy;
+				sumfz += force * dz;
+
+			}
+
+			
+			if (i > 0 && j > 0) { //if past first row and past first col
+				float dx = stateList[i - 1][j - 1].pos[0] - stateList[i][j].pos[0];
+				float dy = stateList[i - 1][j - 1].pos[1] - stateList[i][j].pos[1];
+				float dz = stateList[i - 1][j - 1].pos[2] - stateList[i][j].pos[2];
+
+				float length = sqrt(dx * dx + dy * dy + dz * dz);
+				dx /= length;
+				dy /= length;
+				dz /= length;
+				float stretch2 = length - stateList[i][j].nodeLength;
+				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+
+
 				sumfx += force * dx;
 				sumfy += force * dy;
 				sumfz += force * dz;
@@ -145,20 +235,60 @@ void getOneDDerivs() {
 				dx /= length;
 				dy /= length;
 				dz /= length;
-				float stretch2 = length - LENGTH0;
+				float stretch2 = length - stateList[i][j].nodeLength;
 				float force = 0.5 * stretch2;
+
+
 				sumfx += force * dx;
 				sumfy += force * dy;
 				sumfz += force * dz;
 
 			}
 
+			if (i < rows - 1 && j < cols - 1) { // if not at bottom row and not at last col
+				float dx = stateList[i + 1][j + 1].pos[0] - stateList[i][j].pos[0];
+				float dy = stateList[i + 1][j + 1].pos[1] - stateList[i][j].pos[1];
+				float dz = stateList[i + 1][j + 1].pos[2] - stateList[i][j].pos[2];
+
+				float length = sqrt(dx * dx + dy * dy + dz * dz);
+				dx /= length;
+				dy /= length;
+				dz /= length;
+				float stretch2 = length - stateList[i][j].nodeLength;
+				float force = 0.5 * stretch2;
+
+
+				sumfx += force * dx;
+				sumfy += force * dy;
+				sumfz += force * dz;
+
+			}
+
+			if (i > 0 && j < cols - 1) { //if past first row and not at last col
+				float dx = stateList[i - 1][j + 1].pos[0] - stateList[i][j].pos[0];
+				float dy = stateList[i - 1][j + 1].pos[1] - stateList[i][j].pos[1];
+				float dz = stateList[i - 1][j + 1].pos[2] - stateList[i][j].pos[2];
+
+				float length = sqrt(dx * dx + dy * dy + dz * dz);
+				dx /= length;
+				dy /= length;
+				dz /= length;
+				float stretch2 = length - stateList[i][j].nodeLength;
+				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+
+				sumfx += force * dx;
+				sumfy += force * dy;
+				sumfz += force * dz;
+
+			}
+
+
 			derivList[i][j].vel[0] = stateList[i][j].vel[0]; //updating vel
-			derivList[i][j].acc[0] = sumfx / 1; //updating acc
+			derivList[i][j].acc[0] = sumfx / stateList[i][j].nodeWeight; //updating acc
 			derivList[i][j].vel[1] = stateList[i][j].vel[1]; //updating velocity
-			derivList[i][j].acc[1] = sumfy / 1; //updating acceleration
+			derivList[i][j].acc[1] = sumfy / stateList[i][j].nodeWeight; //updating acceleration
 			derivList[i][j].vel[2] = stateList[i][j].vel[2];
-			derivList[i][j].acc[2] = sumfz / 1;
+			derivList[i][j].acc[2] = sumfz / stateList[i][j].nodeWeight;
 		}
 	}
 
@@ -168,13 +298,12 @@ void getOneDDerivs() {
 
 void advOneTimeStep() {
 	getOneDDerivs();
-	for (int i = 1; i < rows; i++) { // plus one row V
+	for (int i = 0; i < rows; i++) { // plus one row V
 		for (int j = 0; j < cols; j++) { // plus one col >
 			for (int k = 0; k < 3; k++) { // three dimensions x y and z
 				stateList[i][j].pos[k] = stateList[i][j].pos[k] + (derivList[i][j].vel[k] * 0.05);
 				stateList[i][j].vel[k] = stateList[i][j].vel[k] + (derivList[i][j].acc[k] * 0.05);
 			}
-
 		}
 	}
 
@@ -209,6 +338,7 @@ void InitArray(int cols, int rows) {
 			stateList[i][j].pos[2] = 0;
 			stateList[i][j].isPicked = false;
 			stateList[i][j].nodeWeight = Weight;
+			stateList[i][j].nodeLength = LENGTH0;
 		}
 	}
 }
@@ -223,6 +353,7 @@ void Animate(void)
 		for (int j = 0; j < cols; j++) { // plus one row V
 			if (stateList[i][j].isPicked) {
 				stateList[i][j].nodeWeight = Weight;
+				stateList[i][j].nodeLength = LENGTH0;
 			}
 		}
 	}
@@ -330,9 +461,9 @@ void Display(void)
 
 	if (Freeze != 1) {
 
-		for (int j = 0; j < rows; j++) {
+		for (int j = 0; j < cols; j++) {
 
-			stateList[j][0].pos[0] = NodeZ.GetValue(nowTime) / 5.;
+			stateList[0][j].pos[1] = NodeZ.GetValue(nowTime) / 5.;
 
 		}
 
@@ -458,13 +589,46 @@ void InitGraphics() {
 	glutIdleFunc(Animate);
 
 	NodeZ.Init();
-	NodeZ.AddTimeValue(0.0, 1.0);
-	NodeZ.AddTimeValue(2.5, 0.0);
-	NodeZ.AddTimeValue(5.0, 1.0);
-	NodeZ.AddTimeValue(7.5, 0.0);
-	NodeZ.AddTimeValue(10.0, 1.0);
+	NodeZ.AddTimeValue(0.0, 0.0);
+	NodeZ.AddTimeValue(1.5, 10.0);
+	NodeZ.AddTimeValue(3.0, 0.0);
+	NodeZ.AddTimeValue(4.5, 10.0);
+	NodeZ.AddTimeValue(5.0, 0.0);
+	NodeZ.AddTimeValue(6.5, 10.0);
+	NodeZ.AddTimeValue(8.0, 0.0);
+	NodeZ.AddTimeValue(10.0, 10.0);
 
 
+}
+
+void Deselect() {
+
+	for (int i = 0; i < rows; i++) { //plus one cols >
+		for (int j = 0; j < cols; j++) { // plus one row V
+			if (stateList[i][j].isPicked) {
+				stateList[i][j].isPicked = false;
+			}
+		}
+	}
+
+}
+
+void InitGLUI()
+{
+	glui = GLUI_Master.create_glui("GLUI");
+	(new GLUI_Spinner(glui, "Weight", &Weight))
+		->set_float_limits(0.0f, 15.0f);
+	//(new GLUI_Spinner(glui, "Length", &LENGTH0))
+	//	->set_float_limits(0.0f, 1.0f);
+	(new GLUI_Button(glui, "Deselect All", -1, (GLUI_Update_CB)Deselect));
+	new GLUI_Checkbox(glui, "Move with cursor", &Moveable);
+
+	GLUI_Scrollbar* sb;
+	sb = new GLUI_Scrollbar(glui, "Length", GLUI_SCROLL_HORIZONTAL, &LENGTH0);
+
+	glui->set_main_gfx_window(MainWindow);
+
+	GLUI_Master.set_glutIdleFunc(Animate);
 }
 
 int main(int argc, char** argv)
@@ -477,16 +641,7 @@ int main(int argc, char** argv)
 
 	Reset();
 
-	GLUI* glui = GLUI_Master.create_glui("GLUI");
-	(new GLUI_Spinner(glui, "Weight", &Weight))
-		->set_float_limits(-1.0f, 1.0f);
-	(new GLUI_Spinner(glui, "Length", &LENGTH0))
-		->set_float_limits(-1.0f, 1.0f);
-
-
-	glui->set_main_gfx_window(MainWindow);
-
-	GLUI_Master.set_glutIdleFunc(Animate);
+	InitGLUI();
 
 	glutSetWindow(MainWindow);
 	glutMainLoop();
@@ -672,6 +827,8 @@ MouseButton(int button, int state, int x, int y)
 				int item = PickBuffer[index++];
 				fprintf(stderr, "\nthing: %u\nrow: %u\ncol: %u\n", item, (item / rows), item % cols);
 				stateList[(item / cols)][item % cols].isPicked = !(stateList[(item / cols)][item % cols].isPicked);
+				moveable_x = item / cols;
+				moveable_y = item % cols;
 
 			}
 
@@ -698,8 +855,14 @@ MouseMotion(int x, int y)
 
 	if ((ActiveButton & LEFT) != 0)
 	{
-		Xrot += (ANGFACT * dy);
-		Yrot += (ANGFACT * dx);
+		if (Moveable) {
+			stateList[moveable_x][moveable_y].pos[0] = stateList[moveable_x][moveable_y].pos[0] + dx;
+			stateList[moveable_x][moveable_y].pos[1] = stateList[moveable_x][moveable_y].pos[1] - dy;
+		}
+		else {
+			Xrot += (ANGFACT * dy);
+			Yrot += (ANGFACT * dx);
+		}
 	}
 
 	if ((ActiveButton & MIDDLE) != 0)
@@ -714,6 +877,7 @@ MouseMotion(int x, int y)
 
 	Xmouse = x;			// new current position
 	Ymouse = y;
+	
 
 	glutSetWindow(MainWindow);
 	glutPostRedisplay();
