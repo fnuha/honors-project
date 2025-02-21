@@ -56,14 +56,14 @@ GLUI* glui;
 Keytimes NodeZ;
 
 //changeable variables
-static GLfloat Weight = 0.8;
+static GLfloat Weight = 0.5;
 static GLfloat	LENGTH0 = 0.2;
+static GLfloat	kval = 1.6;
 static GLint Moveable = 0;			// are we moving a point around
 int		moveable_x = -1;
 int		moveable_y = -1;
 int		rows = 10;
 int		cols = 10;
-float	k = 6.5;
 float	damp = 1.0;
 int		ptSize = 4;
 bool	SomethingPicked;
@@ -81,6 +81,7 @@ struct nodeState {
 	bool isPicked;
 	float nodeWeight;
 	float nodeLength;
+	float nodeK;
 };
 
 void	Animate();
@@ -108,23 +109,22 @@ void getOneDDerivs() {
 
 	for (int i = 1; i < rows; i++) { // plus one row v
 		for (int j = 0; j < cols; j++) { // plus one col >
-			float sumfy = -stateList[i][j].nodeWeight; // downwards weight
-			//float ym = stateList[i - 1][j].pos[1] - stateList[i][j].pos[1]; // prev node pos minus curr node pos to find upwards force
-			//float stretch = ym - stateList[i][j].nodeLength; // upwards stretch minus default stretch w no forces
-			//sumfy += k * stretch; //adding stretch upwards to downwards weight
-			//sumfy -= damp * derivList[i][j].vel[1]; //adding velocity to stretch
+
+			if (i == moveable_x && j == moveable_y && Moveable && ((ActiveButton & LEFT) != 0)) {
+				derivList[i][j].vel[0] = 0;
+				derivList[i][j].acc[0] = 0; //updating acc
+				derivList[i][j].vel[1] = 0;
+				derivList[i][j].acc[1] = 0; //updating acceleration
+				derivList[i][j].vel[2] = 0;
+				derivList[i][j].acc[2] = 0;
+				
+				continue;
+			}
 
 			float sumfx = 0; //no downwards weight
-			//float xm = stateList[i - 1][j].pos[0] - stateList[i][j].pos[0]; //prev node minus curr node pos
-			//stretch = xm; //horizontal force
-			//sumfx += k * stretch; //adding stretch to movement
-			//sumfx -= damp * derivList[i][j].vel[0]; //adding velocity to stretch
-
+			float sumfy = -stateList[i][j].nodeWeight; // downwards weight
 			float sumfz = 0;
-			//float zm = stateList[i - 1][j].pos[2] - stateList[i][j].pos[2];
-			//stretch = zm;
-			//sumfz += k * stretch;
-			//sumfz -= damp * derivList[i][j].vel[2];
+
 
 			if (i > 0) { //above neighbor
 
@@ -137,7 +137,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+				float force = stateList[i][j].nodeK * stretch2; //0.5 should not be hard coded, change spring constant to a slider
 
 				sumfy -= damp * derivList[i][j].vel[1]; //adding velocity to stretch
 				sumfx -= damp * derivList[i][j].vel[0]; //adding velocity to stretch
@@ -160,7 +160,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+				float force = stateList[i][j].nodeK * stretch2; //0.5 should not be hard coded, change spring constant to a slider
 
 				sumfx += force * dx;
 				sumfy += force * dy;
@@ -179,7 +179,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+				float force = stateList[i][j].nodeK * stretch2; //0.5 should not be hard coded, change spring constant to a slider
 
 				sumfx += force * dx;
 				sumfy += force * dy;
@@ -198,7 +198,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+				float force = stateList[i][j].nodeK * stretch2; //0.5 should not be hard coded, change spring constant to a slider
 
 				sumfx += force * dx;
 				sumfy += force * dy;
@@ -217,7 +217,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+				float force = stateList[i][j].nodeK * stretch2; //0.5 should not be hard coded, change spring constant to a slider
 
 
 				sumfx += force * dx;
@@ -236,7 +236,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2;
+				float force = stateList[i][j].nodeK * stretch2;
 
 
 				sumfx += force * dx;
@@ -255,7 +255,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2;
+				float force = stateList[i][j].nodeK * stretch2;
 
 
 				sumfx += force * dx;
@@ -274,7 +274,7 @@ void getOneDDerivs() {
 				dy /= length;
 				dz /= length;
 				float stretch2 = length - stateList[i][j].nodeLength;
-				float force = 0.5 * stretch2; //0.5 should not be hard coded, change spring constant to a slider
+				float force = stateList[i][j].nodeK * stretch2; //0.5 should not be hard coded, change spring constant to a slider
 
 				sumfx += force * dx;
 				sumfy += force * dy;
@@ -339,6 +339,7 @@ void InitArray(int cols, int rows) {
 			stateList[i][j].isPicked = false;
 			stateList[i][j].nodeWeight = Weight;
 			stateList[i][j].nodeLength = LENGTH0;
+			stateList[i][j].nodeK = kval;
 		}
 	}
 }
@@ -354,6 +355,7 @@ void Animate(void)
 			if (stateList[i][j].isPicked) {
 				stateList[i][j].nodeWeight = Weight;
 				stateList[i][j].nodeLength = LENGTH0;
+				stateList[i][j].nodeK = kval;
 			}
 		}
 	}
@@ -625,6 +627,7 @@ void InitGLUI()
 
 	GLUI_Scrollbar* sb;
 	sb = new GLUI_Scrollbar(glui, "Length", GLUI_SCROLL_HORIZONTAL, &LENGTH0);
+	sb = new GLUI_Scrollbar(glui, "K Value", GLUI_SCROLL_HORIZONTAL, &kval);
 
 	glui->set_main_gfx_window(MainWindow);
 
@@ -855,7 +858,7 @@ MouseMotion(int x, int y)
 
 	if ((ActiveButton & LEFT) != 0)
 	{
-		if (Moveable) {
+		if (Moveable && moveable_x > -1 && moveable_y > -1) {
 			stateList[moveable_x][moveable_y].pos[0] = stateList[moveable_x][moveable_y].pos[0] + dx;
 			stateList[moveable_x][moveable_y].pos[1] = stateList[moveable_x][moveable_y].pos[1] - dy;
 		}
