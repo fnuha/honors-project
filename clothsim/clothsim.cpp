@@ -57,13 +57,13 @@ Keytimes NodeZ;
 
 //changeable variables
 static GLfloat Weight = 0.5;
-static GLfloat	LENGTH0 = 0.2;
-static GLfloat	kval = 1.6;
-static GLint Moveable = 0;			// are we moving a point around
+static GLfloat	LENGTH0 = 1.2;
+static GLfloat	kval = 1.0;
+static GLint Moveable = 0;			// 0 = selecting, 1 = pinning, 2 = moving single point, 3 = moving camera around
 int		moveable_x = -1;
 int		moveable_y = -1;
-int		rows = 10;
-int		cols = 10;
+int		rows = 20;
+int		cols = 20;
 float	damp = 1.0;
 int		ptSize = 4;
 bool	SomethingPicked;
@@ -79,6 +79,7 @@ struct nodeState {
 	float vel[3];
 	float acc[3];
 	bool isPicked;
+	bool isPinned;
 	float nodeWeight;
 	float nodeLength;
 	float nodeK;
@@ -107,10 +108,10 @@ void getOneDDerivs() {
 	//change the direct neighbor node calculations + add left, right, bottom to change to reflect
 	//delta x/y/z 
 
-	for (int i = 1; i < rows; i++) { // plus one row v
+	for (int i = 0; i < rows; i++) { // plus one row v
 		for (int j = 0; j < cols; j++) { // plus one col >
 
-			if (i == moveable_x && j == moveable_y && Moveable && ((ActiveButton & LEFT) != 0)) {
+			if ((i == moveable_x && j == moveable_y && Moveable == 2 && ((ActiveButton & LEFT) != 0)) || stateList[i][j].isPinned) {
 				derivList[i][j].vel[0] = 0;
 				derivList[i][j].acc[0] = 0; //updating acc
 				derivList[i][j].vel[1] = 0;
@@ -333,10 +334,16 @@ void InitArray(int cols, int rows) {
 
 				stateList[i][j].isPicked = false;
 			}
-			stateList[i][j].pos[0] = j;
-			stateList[i][j].pos[1] = -i;
+			stateList[i][j].pos[0] = j*LENGTH0;
+			stateList[i][j].pos[1] = -i*LENGTH0;
 			stateList[i][j].pos[2] = 0;
 			stateList[i][j].isPicked = false;
+			if (i == 0) {
+				stateList[i][j].isPinned = true;
+			}
+			else {
+				stateList[i][j].isPinned = false;
+			}
 			stateList[i][j].nodeWeight = Weight;
 			stateList[i][j].nodeLength = LENGTH0;
 			stateList[i][j].nodeK = kval;
@@ -365,6 +372,8 @@ void Animate(void)
 	ms %= MS_PER_CYCLE;							// makes the value of ms between 0 and MS_PER_CYCLE-1
 	Time = (float)ms / (float)MS_PER_CYCLE;		// makes the value of Time between 0. and slightly less than 1.
 
+	//fprintf(stderr, "%d\n", Moveable);
+	
 	glutSetWindow(MainWindow);
 	glutPostRedisplay();
 }
@@ -463,11 +472,11 @@ void Display(void)
 
 	if (Freeze != 1) {
 
-		for (int j = 0; j < cols; j++) {
+	/*	for (int j = 0; j < cols; j++) {
 
 			stateList[0][j].pos[1] = NodeZ.GetValue(nowTime) / 5.;
 
-		}
+		}*/
 
 		advOneTimeStep();
 	}
@@ -480,7 +489,7 @@ void Display(void)
 		for (int i = 0; i < rows; i++) { //rows + 1 goes V
 			for (int j = 0; j < cols; j++) { // cols + 1 goes ->
 				glLoadName(x);
-				fprintf(stderr, "%d %d: %s\n", i, j, stateList[i][j].isPicked ? "picked" : "not picked");
+				//fprintf(stderr, "%d %d: %s\n", i, j, stateList[i][j].isPicked ? "picked" : "not picked");
 				glBegin(GL_POINTS);
 				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
 				glEnd();
@@ -592,13 +601,14 @@ void InitGraphics() {
 
 	NodeZ.Init();
 	NodeZ.AddTimeValue(0.0, 0.0);
-	NodeZ.AddTimeValue(1.5, 10.0);
-	NodeZ.AddTimeValue(3.0, 0.0);
-	NodeZ.AddTimeValue(4.5, 10.0);
+	NodeZ.AddTimeValue(1.25, 20.0);
+	NodeZ.AddTimeValue(2.5, 0.0);
+	NodeZ.AddTimeValue(3.75, 20.0);
 	NodeZ.AddTimeValue(5.0, 0.0);
-	NodeZ.AddTimeValue(6.5, 10.0);
-	NodeZ.AddTimeValue(8.0, 0.0);
-	NodeZ.AddTimeValue(10.0, 10.0);
+	NodeZ.AddTimeValue(6.25, 20.0);
+	NodeZ.AddTimeValue(7.5, 0.0);
+	NodeZ.AddTimeValue(8.75, 20.0);
+	NodeZ.AddTimeValue(10.0, 0.0);
 
 
 }
@@ -607,9 +617,17 @@ void Deselect() {
 
 	for (int i = 0; i < rows; i++) { //plus one cols >
 		for (int j = 0; j < cols; j++) { // plus one row V
-			if (stateList[i][j].isPicked) {
-				stateList[i][j].isPicked = false;
-			}
+			stateList[i][j].isPicked = false;
+		}
+	}
+
+}
+
+void Select() {
+
+	for (int i = 0; i < rows; i++) { //plus one cols >
+		for (int j = 0; j < cols; j++) { // plus one row V
+			stateList[i][j].isPicked = true;
 		}
 	}
 
@@ -618,16 +636,28 @@ void Deselect() {
 void InitGLUI()
 {
 	glui = GLUI_Master.create_glui("GLUI");
-	(new GLUI_Spinner(glui, "Weight", &Weight))
-		->set_float_limits(0.0f, 15.0f);
-	//(new GLUI_Spinner(glui, "Length", &LENGTH0))
-	//	->set_float_limits(0.0f, 1.0f);
+	(new GLUI_Button(glui, "Select All", -1, (GLUI_Update_CB)Select));
 	(new GLUI_Button(glui, "Deselect All", -1, (GLUI_Update_CB)Deselect));
-	new GLUI_Checkbox(glui, "Move with cursor", &Moveable);
+
+	GLUI_Panel* type_panel = new GLUI_Panel(glui, "Mode");
+	GLUI_RadioGroup* radio = new GLUI_RadioGroup(type_panel, &Moveable, 4);
+	new GLUI_RadioButton(radio, "Selecting");
+	new GLUI_RadioButton(radio, "Pinning");
+	new GLUI_RadioButton(radio, "Move Single Point");
+	new GLUI_RadioButton(radio, "Move Camera");
+
+	//new GLUI_Checkbox(glui, "Move with cursor", &Moveable);
 
 	GLUI_Scrollbar* sb;
+	new GLUI_StaticText(glui, "Length");
 	sb = new GLUI_Scrollbar(glui, "Length", GLUI_SCROLL_HORIZONTAL, &LENGTH0);
+	sb->set_float_limits(0.0f, 10.0f);
+	new GLUI_StaticText(glui, "K value - stretch");
 	sb = new GLUI_Scrollbar(glui, "K Value", GLUI_SCROLL_HORIZONTAL, &kval);
+	sb->set_float_limits(0.0f, 5.0f);
+	new GLUI_StaticText(glui, "Weight");
+	sb = new GLUI_Scrollbar(glui, "Weight", GLUI_SCROLL_HORIZONTAL, &Weight);
+	sb->set_float_limits(0.0f, 5.0f);
 
 	glui->set_main_gfx_window(MainWindow);
 
@@ -828,8 +858,13 @@ MouseButton(int button, int state, int x, int y)
 			for (int j = 0; j < numItems; j++) {
 
 				int item = PickBuffer[index++];
-				fprintf(stderr, "\nthing: %u\nrow: %u\ncol: %u\n", item, (item / rows), item % cols);
-				stateList[(item / cols)][item % cols].isPicked = !(stateList[(item / cols)][item % cols].isPicked);
+				//fprintf(stderr, "\nthing: %u\nrow: %u\ncol: %u\n", item, (item / rows), item % cols);
+				if (Moveable == 0) {
+					stateList[(item / cols)][item % cols].isPicked = !(stateList[(item / cols)][item % cols].isPicked);
+				}
+				else if (Moveable == 1) {
+					stateList[(item / cols)][item % cols].isPinned = !(stateList[(item / cols)][item % cols].isPinned);
+				}
 				moveable_x = item / cols;
 				moveable_y = item % cols;
 
@@ -858,11 +893,11 @@ MouseMotion(int x, int y)
 
 	if ((ActiveButton & LEFT) != 0)
 	{
-		if (Moveable && moveable_x > -1 && moveable_y > -1) {
+		if (Moveable == 1 || (Moveable == 2 && moveable_x > -1 && moveable_y > -1)) {
 			stateList[moveable_x][moveable_y].pos[0] = stateList[moveable_x][moveable_y].pos[0] + dx;
 			stateList[moveable_x][moveable_y].pos[1] = stateList[moveable_x][moveable_y].pos[1] - dy;
 		}
-		else {
+		else if (Moveable == 3) {
 			Xrot += (ANGFACT * dy);
 			Yrot += (ANGFACT * dx);
 		}
