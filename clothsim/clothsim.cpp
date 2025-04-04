@@ -57,13 +57,15 @@ Keytimes NodeZ;
 
 //changeable variables
 static GLfloat Weight = 0.5;
-static GLfloat	LENGTH0 = 1.2;
+static GLfloat	LENGTH0 = 1.5;
 static GLfloat	kval = 1.0;
 static GLint Moveable = 0;			// 0 = selecting, 1 = pinning, 2 = moving single point, 3 = moving camera around
+static GLint Visualmode = 0;		// 0 = nodes, 1 = wireframe, 2 = surface w lighting
+static GLfloat pinX, pinY, pinZ = 0.0; //pinning location
 int		moveable_x = -1;
 int		moveable_y = -1;
-int		rows = 20;
-int		cols = 20;
+int		rows = 50;
+int		cols = 50;
 float	damp = 1.0;
 int		ptSize = 4;
 bool	SomethingPicked;
@@ -364,6 +366,12 @@ void Animate(void)
 				stateList[i][j].nodeLength = LENGTH0;
 				stateList[i][j].nodeK = kval;
 			}
+			if (stateList[i][j].isPinned && i == moveable_x && j == moveable_y) {
+				stateList[i][j].pos[0] = pinX;
+				stateList[i][j].pos[1] = pinY;
+				stateList[i][j].pos[2] = pinZ;
+
+			}
 		}
 	}
 
@@ -376,6 +384,46 @@ void Animate(void)
 	
 	glutSetWindow(MainWindow);
 	glutPostRedisplay();
+}
+
+float*
+Array3(float a, float b, float c)
+{
+	static float array[4];
+
+	array[0] = a;
+	array[1] = b;
+	array[2] = c;
+	array[3] = 1.;
+	return array;
+}
+
+float*
+MulArray3(float factor, float a, float b, float c)
+{
+	static float array[4];
+
+	float* abc = Array3(a, b, c);
+	array[0] = factor * abc[0];
+	array[1] = factor * abc[1];
+	array[2] = factor * abc[2];
+	array[3] = 1.;
+	return array;
+}
+
+
+void
+SetPointLight( int ilight, float x, float y, float z,  float r, float g, float b )
+{
+	glLightfv( ilight, GL_POSITION,  Array3( x, y, z ) );
+	glLightf(  ilight, GL_SPOT_CUTOFF, 180.f );
+	glLightfv( ilight, GL_AMBIENT,   MulArray3( 0.1f,  1.f, 1.f, 1.f ) );
+	glLightfv( ilight, GL_DIFFUSE,   MulArray3( 0.6f, r, g, b ) );
+	glLightfv( ilight, GL_SPECULAR,  MulArray3( 0.4f, 1.f, 1.f, 1.f ) );
+	glLightf ( ilight, GL_CONSTANT_ATTENUATION, 1. );
+	glLightf ( ilight, GL_LINEAR_ATTENUATION, 0. );
+	glLightf ( ilight, GL_QUADRATIC_ATTENUATION, 0. );
+	glEnable( ilight );
 }
 
 void Display(void)
@@ -500,24 +548,75 @@ void Display(void)
 	}
 
 	if (RenderMode == GL_RENDER) {
-		glBegin(GL_POINTS);
+		if (Visualmode == 0) {
+			glDisable(GL_LIGHTING);
+			glBegin(GL_POINTS);
 
-		for (int i = 0; i < rows; i++) { //rows + 1 goes V
-			for (int j = 0; j < cols; j++) { //cols + 1 goes ->
+			for (int i = 0; i < rows; i++) { //rows + 1 goes V
+				for (int j = 0; j < cols; j++) { //cols + 1 goes ->
 
 
-				if (!stateList[i][j].isPicked) {
-					glColor3f(0., 0.5, 0.5);
+					if (stateList[i][j].isPicked) {
+						glColor3f(0., 1., 1.);
+					}
+					else if (stateList[i][j].isPinned) {
+						glColor3f(1., 1., 0.);
+					}
+					else {
+						glColor3f(0.5, 0.5, 0.5);
+					}
+					glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+
+
 				}
-				else {
-					glColor3f(0.5, 0.5, 0.5);
-				}
-				glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
-
-
 			}
+			glEnd();
 		}
-		glEnd();
+
+		if (Visualmode == 1) {
+			glDisable(GL_LIGHTING);
+			glBegin(GL_LINES);
+
+			for (int i = 0; i < rows; i++) {
+				for (int j = 0; j < cols; j++) {
+					if (i < rows - 1) {
+						glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+						glVertex3f(stateList[i + 1][j].pos[0], stateList[i + 1][j].pos[1], stateList[i + 1][j].pos[2]);
+					}
+
+					if (j < cols - 1) {
+						glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+						glVertex3f(stateList[i][j + 1].pos[0], stateList[i][j + 1].pos[1], stateList[i][j + 1].pos[2]);
+					}
+				}
+			}
+			glEnd();
+
+		}
+
+		if (Visualmode == 2) {
+			glLightfv(GL_LIGHT0, GL_POSITION, Array3(rows/2, cols/4, 20));
+			glEnable(GL_LIGHTING);
+			glEnable(GL_LIGHT0);
+			glBegin(GL_QUADS);
+			glColor3f(0.5, 0.5, 0.5);
+
+			for (int i = 0; i < rows; i++) {
+				for (int j = 0; j < cols; j++) {
+					if (i < rows - 1 && j < cols - 1) {
+						glVertex3f(stateList[i][j].pos[0], stateList[i][j].pos[1], stateList[i][j].pos[2]);
+						glVertex3f(stateList[i + 1][j].pos[0], stateList[i + 1][j].pos[1], stateList[i + 1][j].pos[2]);
+						glVertex3f(stateList[i + 1][j + 1].pos[0], stateList[i + 1][j + 1].pos[1], stateList[i + 1][j + 1].pos[2]);
+						glVertex3f(stateList[i][j + 1].pos[0], stateList[i][j + 1].pos[1], stateList[i][j + 1].pos[2]);
+					}
+
+				}
+			}
+
+			glEnd();
+			
+		}
+
 	}
 
 
@@ -640,11 +739,17 @@ void InitGLUI()
 	(new GLUI_Button(glui, "Deselect All", -1, (GLUI_Update_CB)Deselect));
 
 	GLUI_Panel* type_panel = new GLUI_Panel(glui, "Mode");
-	GLUI_RadioGroup* radio = new GLUI_RadioGroup(type_panel, &Moveable, 4);
-	new GLUI_RadioButton(radio, "Selecting");
-	new GLUI_RadioButton(radio, "Pinning");
-	new GLUI_RadioButton(radio, "Move Single Point");
-	new GLUI_RadioButton(radio, "Move Camera");
+	GLUI_RadioGroup* mode_radio = new GLUI_RadioGroup(type_panel, &Moveable, 4);
+	new GLUI_RadioButton(mode_radio, "Selecting");
+	new GLUI_RadioButton(mode_radio, "Pinning");
+	new GLUI_RadioButton(mode_radio, "Move Single Point");
+	new GLUI_RadioButton(mode_radio, "Move Camera");
+
+	GLUI_Panel* vis_panel = new GLUI_Panel(glui, "Visuals");
+	GLUI_RadioGroup* vis_radio = new GLUI_RadioGroup(vis_panel, &Visualmode, 3);
+	new GLUI_RadioButton(vis_radio, "Nodes");
+	new GLUI_RadioButton(vis_radio, "Wireframe");
+	new GLUI_RadioButton(vis_radio, "Surface");
 
 	//new GLUI_Checkbox(glui, "Move with cursor", &Moveable);
 
@@ -658,6 +763,16 @@ void InitGLUI()
 	new GLUI_StaticText(glui, "Weight");
 	sb = new GLUI_Scrollbar(glui, "Weight", GLUI_SCROLL_HORIZONTAL, &Weight);
 	sb->set_float_limits(0.0f, 5.0f);
+
+	new GLUI_StaticText(glui, "X value");
+	sb = new GLUI_Scrollbar(glui, "xval", GLUI_SCROLL_HORIZONTAL, &pinX);
+	sb->set_float_limits(-10.0f, 10.0f);
+	new GLUI_StaticText(glui, "Y value");
+	sb = new GLUI_Scrollbar(glui, "yval", GLUI_SCROLL_HORIZONTAL, &pinY);
+	sb->set_float_limits(-10.0f, 10.0f);
+	new GLUI_StaticText(glui, "Z value");
+	sb = new GLUI_Scrollbar(glui, "zval", GLUI_SCROLL_HORIZONTAL, &pinZ);
+	sb->set_float_limits(-10.0f, 10.0f);
 
 	glui->set_main_gfx_window(MainWindow);
 
@@ -864,6 +979,9 @@ MouseButton(int button, int state, int x, int y)
 				}
 				else if (Moveable == 1) {
 					stateList[(item / cols)][item % cols].isPinned = !(stateList[(item / cols)][item % cols].isPinned);
+					pinX = stateList[(item / cols)][item % cols].pos[0];
+					pinY = stateList[(item / cols)][item % cols].pos[1];
+					pinZ = stateList[(item / cols)][item % cols].pos[2];
 				}
 				moveable_x = item / cols;
 				moveable_y = item % cols;
@@ -893,11 +1011,11 @@ MouseMotion(int x, int y)
 
 	if ((ActiveButton & LEFT) != 0)
 	{
-		if (Moveable == 1 || (Moveable == 2 && moveable_x > -1 && moveable_y > -1)) {
+		/*if ((Moveable == 2 && moveable_x > -1 && moveable_y > -1)) {
 			stateList[moveable_x][moveable_y].pos[0] = stateList[moveable_x][moveable_y].pos[0] + dx;
 			stateList[moveable_x][moveable_y].pos[1] = stateList[moveable_x][moveable_y].pos[1] - dy;
-		}
-		else if (Moveable == 3) {
+		}*/
+		if (Moveable == 3) {
 			Xrot += (ANGFACT * dy);
 			Yrot += (ANGFACT * dx);
 		}
