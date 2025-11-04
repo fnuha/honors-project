@@ -4,6 +4,9 @@ This is a computer graphics project based in OpenGL in C++ that simulates fabric
 
 > The main purpose of this research project and question is to create connections between computer science and art through the field of computer graphics.
 
+[This project was defended as an undergraduate thesis project at Oregon State University on May 30th, 2025.](https://ir.library.oregonstate.edu/concern/honors_college_theses/kw52jj652?locale=en)
+[(Video presentation link)](https://www.youtube.com/watch?v=gfAodVgdyIk)
+
 ### Specifications
 
 This project is written in C++ using the OpenGL library to create a 3D simulation. The [GLUT library](https://www.opengl.org/resources/libraries/glut/glut_downloads.php) is used to interface with the OpenGL library in order to simplify the callback and main rendering loop process. The [GLUI library](https://github.com/libglui/glui) is used to create an interactive windowed menu to allow the user to change properties of the cloth during runtime. 
